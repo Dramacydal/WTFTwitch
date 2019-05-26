@@ -49,7 +49,7 @@ namespace WTFTwitch
                 parts.Add($"{timeSpan.Hours}h");
             if (timeSpan.Minutes != 0)
                 parts.Add($"{timeSpan.Minutes}m");
-            if (timeSpan.Seconds != 0)
+            if (timeSpan.Seconds != 0 || parts.Count == 0)
                 parts.Add($"{timeSpan.Seconds}s");
 
             return string.Join(" ", parts);

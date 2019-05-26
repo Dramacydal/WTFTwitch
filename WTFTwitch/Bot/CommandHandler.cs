@@ -16,14 +16,15 @@ namespace WTFTwitch.Bot
         private ResolveHelper _resolveHelper;
 
         private WatchedChannel _channel;
-        private BotSettings _settings;
+        private ChannelProcessor _processor;
+        private BotSettings _settings => _processor.Settings;
         private TwitchAPI _api => _settings.Api;
         private TwitchClient _client => _settings.Client;
 
-        public CommandHandler(WatchedChannel channel, BotSettings settings)
+        public CommandHandler(WatchedChannel channel, ChannelProcessor processor)
         {
             this._channel = channel;
-            this._settings = settings;
+            this._processor = processor;
 
             this._resolveHelper = new ResolveHelper(_api);
         }
@@ -134,6 +135,12 @@ namespace WTFTwitch.Bot
 
         private void HandleUptimeCommand()
         {
+            if (!_processor.IsBroadcasting)
+            {
+                SendMessage("Stream is offline");
+                return;
+            }
+
             var cacheKey = $"uptime_{_channel.Id}";
             DateTime startDate;
             if (!CacheHelper.Load(cacheKey, out startDate))
@@ -150,7 +157,11 @@ namespace WTFTwitch.Bot
                 CacheHelper.Save(cacheKey, startDate, TimeSpan.FromMinutes(1));
             }
 
-            SendMessage("Stream is up for: {0}", (DateTime.UtcNow - startDate).AsPrettyReadable());
+            var diff = DateTime.UtcNow - startDate;
+            if (diff.TotalSeconds < 0)
+                diff = default(TimeSpan);
+
+            SendMessage("Stream is up for: {0}", diff.AsPrettyReadable());
         }
     }
 }

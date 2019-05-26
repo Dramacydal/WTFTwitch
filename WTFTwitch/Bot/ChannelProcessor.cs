@@ -16,9 +16,9 @@ namespace WTFTwitch.Bot
     {
         public WatchedChannel Channel { get; }
 
-        private BotSettings _settings;
-        private TwitchClient _client => _settings.Client;
-        private TwitchAPI _api => _settings.Api;
+        public BotSettings Settings { get; }
+        private TwitchClient _client => Settings.Client;
+        private TwitchAPI _api => Settings.Api;
 
         private StatisticManager _statisticManager;
         private CommandHandler _commandHandler;
@@ -31,16 +31,18 @@ namespace WTFTwitch.Bot
 
         public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
 
-        public bool IsOnline { get; private set; } = false;
+        public bool IsBroadcasting { get; private set; } = false;
 
         public ChannelProcessor(WatchedChannel channel, BotSettings settings)
         {
             this.Channel = channel;
-            this._settings = settings;
+            this.Settings = settings;
 
             this._statisticManager = new StatisticManager(channel);
-            this._commandHandler = new CommandHandler(channel, settings);
+            this._commandHandler = new CommandHandler(channel, this);
             this._resolveHelper = new ResolveHelper(settings.Api);
+
+            IsBroadcasting = CheckIsBroadcasting();
 
             _updateTask = Task.Run(() => UpdateThread(_updateThreadTokenSource.Token));
         }
@@ -64,12 +66,17 @@ namespace WTFTwitch.Bot
             }
         }
 
+        private bool CheckIsBroadcasting()
+        {
+            return _api.V5.Streams.BroadcasterOnlineAsync(Channel.Id).Result;
+        }
+
         private void UpdateChannel()
         {
-            var OldOnline = IsOnline;
-            IsOnline = _api.V5.Streams.BroadcasterOnlineAsync(Channel.Id).Result;
+            var OldOnline = IsBroadcasting;
+            IsBroadcasting = CheckIsBroadcasting();
 
-            if (OldOnline != IsOnline)
+            if (OldOnline != IsBroadcasting)
             {
                 var stream = _api.V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
                 if (stream.Stream != null)
@@ -77,7 +84,7 @@ namespace WTFTwitch.Bot
                     var message = $"{stream.Stream.Channel.Status}\r\n{stream.Stream.Game}";
                     foreach (var notifyChannel in Channel.TelegramNotifyChannels)
                     {
-                        var res = _settings.Telegram?.SendPhotoAsync(new ChatId(notifyChannel), new InputOnlineFile(stream.Stream.Preview.Large), message).Result;
+                        var res = Settings.Telegram?.SendPhotoAsync(new ChatId(notifyChannel), new InputOnlineFile(stream.Stream.Preview.Large), message).Result;
                     }
                 }
             }
@@ -85,7 +92,7 @@ namespace WTFTwitch.Bot
 
         private void UpdateChannelUserStats()
         {
-            if (!IsOnline)
+            if (!IsBroadcasting)
                 return;
 
             var chatters = _api.Undocumented.GetChattersAsync(Channel.Name).Result;
