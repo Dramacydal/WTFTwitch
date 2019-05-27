@@ -10,6 +10,8 @@ using TwitchLib.Api;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
+using TwitchLib.Communication.Events;
+using WTFTwitch.Bot.Commands;
 using WTFTwitch.Database;
 
 namespace WTFTwitch.Bot
@@ -23,9 +25,13 @@ namespace WTFTwitch.Bot
 
         private Dictionary<string, ChannelProcessor> _channelProcessors = new Dictionary<string, ChannelProcessor>();
 
+        private WhisperCommandHandler _whisperCommandHandler;
+
         public TelegramBotClient Telegram { get; private set; }
 
         public string BotName => Client.TwitchUsername;
+
+        private bool _isStopping = false;
 
         public ChatBot(BotSettings settings)
         {
@@ -35,6 +41,8 @@ namespace WTFTwitch.Bot
             InitializeAPI();
             InitializeClient();
             InitializeTelegram();
+
+            _whisperCommandHandler = new WhisperCommandHandler(_settings);
         }
 
         private void InitializeAPI()
@@ -53,6 +61,10 @@ namespace WTFTwitch.Bot
 
             Client.OnLog += Client_OnLog;
             Client.OnConnected += Client_OnConnected;
+            Client.OnDisconnected += Client_OnDisconnected;
+            Client.OnConnectionError += Client_OnConnectionError;
+            Client.OnReconnected += Client_OnReconnected;
+            Client.OnError += Client_OnError;
 
             Client.OnJoinedChannel += Client_OnJoinedChannel;
             Client.OnLeftChannel += Client_OnLeftChannel;
@@ -63,7 +75,32 @@ namespace WTFTwitch.Bot
             Client.OnMessageReceived += Client_OnMessageReceived;
             Client.OnChatCommandReceived += Client_OnChatCommandReceived;
             Client.OnWhisperCommandReceived += Client_OnWhisperCommandReceived;
+        }
 
+        private void Client_OnError(object sender, OnErrorEventArgs e)
+        {
+            Console.WriteLine($"Twitch client error fired: {e.Exception.Message}, {e.Exception.StackTrace}");
+        }
+
+        private void Client_OnReconnected(object sender, OnReconnectedEventArgs e)
+        {
+            Console.WriteLine("Twitch client reconnected");
+        }
+
+        private void Client_OnConnectionError(object sender, OnConnectionErrorArgs e)
+        {
+            Console.WriteLine($"Client connection error: {e.Error.Message}");
+        }
+
+        private void Client_OnDisconnected(object sender, OnDisconnectedEventArgs e)
+        {
+            Console.WriteLine($"Twitch client disconnected");
+            if (!_isStopping)
+                Client.Connect();
+        }
+
+        public void Start()
+        {
             Client.Connect();
         }
 
@@ -86,10 +123,12 @@ namespace WTFTwitch.Bot
 
         public void Stop()
         {
+            _isStopping = true;
             foreach (var processor in _channelProcessors)
                 processor.Value.Stop();
 
             Client.Disconnect();
+            _isStopping = false;
         }
 
         private List<WatchedChannel> LoadWatchedChannels()
@@ -157,7 +196,6 @@ namespace WTFTwitch.Bot
         {
             try
             {
-                HandleCommand(e.Command);
                 GetChannelProcessor(e.Command.ChatMessage.Channel)?.OnCommand(sender, e);
             }
             catch (Exception ex)
@@ -249,18 +287,16 @@ namespace WTFTwitch.Bot
             Console.WriteLine($"Log: {e.Data}");
         }
 
-        private void HandleCommand(ChatCommand command)
-        {
-        }
-
-        private void HandleWhisperCommand(ChatCommand command)
-        {
-
-        }
-
         private void Client_OnWhisperCommandReceived(object sender, OnWhisperCommandReceivedArgs e)
         {
-            
+            try
+            {
+                _whisperCommandHandler.Handle(e.Command);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to handle whisper command: {ex.Message}");
+            }
         }
     }
 }

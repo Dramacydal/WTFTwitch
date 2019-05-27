@@ -30,6 +30,12 @@ namespace WTFTwitch.Bot
             }
         }
 
+        public void Start()
+        {
+            foreach (var bot in _bots)
+                bot.Start();
+        }
+
         public void Stop()
         {
             foreach (var bot in _bots)

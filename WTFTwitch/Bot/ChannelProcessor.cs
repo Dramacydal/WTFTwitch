@@ -9,6 +9,7 @@ using Telegram.Bot.Types.InputFiles;
 using TwitchLib.Api;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
+using WTFTwitch.Bot.Commands;
 
 namespace WTFTwitch.Bot
 {
@@ -21,7 +22,7 @@ namespace WTFTwitch.Bot
         private TwitchAPI _api => Settings.Api;
 
         private StatisticManager _statisticManager;
-        private CommandHandler _commandHandler;
+        private ChatCommandHandler _chatCommandHandler;
 
         private ResolveHelper _resolveHelper;
 
@@ -39,8 +40,9 @@ namespace WTFTwitch.Bot
             this.Settings = settings;
 
             this._statisticManager = new StatisticManager(channel);
-            this._commandHandler = new CommandHandler(channel, this);
             this._resolveHelper = new ResolveHelper(settings.Api);
+
+            this._chatCommandHandler = new ChatCommandHandler(channel, this);
 
             IsBroadcasting = CheckIsBroadcasting();
 
@@ -98,7 +100,7 @@ namespace WTFTwitch.Bot
             var chatters = _api.Undocumented.GetChattersAsync(Channel.Name).Result;
             foreach (var chatter in chatters)
             {
-                var userId = _resolveHelper.GetUserByName(chatter.Username);
+                var userId = _resolveHelper.GetUserIdByName(chatter.Username);
                 if (userId == null)
                 {
                     Console.WriteLine($"Failed to resolve chatter {chatter.Username}");
@@ -117,14 +119,14 @@ namespace WTFTwitch.Bot
 
         public void OnCommand(object sender, OnChatCommandReceivedArgs e)
         {
-            _commandHandler.Handle(e.Command);
+            _chatCommandHandler.Handle(e.Command);
         }
 
         public void OnUserLeft(object sender, OnUserLeftArgs e)
         {
             Console.WriteLine($"User left: {e.Username} channel: {Channel.Name}");
 
-            var userId = _resolveHelper.GetUserByName(e.Username);
+            var userId = _resolveHelper.GetUserIdByName(e.Username);
             if (userId == null)
             {
                 Console.WriteLine($"Failed to resolve left user {e.Username} for channel {Channel.Name}");
@@ -138,7 +140,7 @@ namespace WTFTwitch.Bot
         {
             Console.WriteLine($"User joined {e.Username} channel: {Channel.Name}");
 
-            var userId = _resolveHelper.GetUserByName(e.Username);
+            var userId = _resolveHelper.GetUserIdByName(e.Username);
             if (userId == null)
             {
                 Console.WriteLine($"Failed to resolve left user {e.Username} for channel {Channel.Name}");

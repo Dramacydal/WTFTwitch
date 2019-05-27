@@ -6,11 +6,13 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{6426A21D-64F3-4415-B54D-F64A7A4C714E}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>wtftwitch</RootNamespace>
-    <AssemblyName>wtftwitch</AssemblyName>
+    <RootNamespace>WTFTwitch</RootNamespace>
+    <AssemblyName>WTFTwitch</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <TargetFrameworkProfile />
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -23,10 +25,8 @@
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -177,14 +177,16 @@
     <Compile Include="Bot\CacheHelper.cs" />
     <Compile Include="Bot\ChannelProcessor.cs" />
     <Compile Include="Bot\ChatBot.cs" />
-    <Compile Include="Bot\CommandHandler.cs" />
+    <Compile Include="Bot\Commands\ChatCommandHandler.cs" />
+    <Compile Include="Bot\Commands\AbstractCommandHandler.cs" />
+    <Compile Include="Bot\Commands\WhisperCommandHandle.cs" />
     <Compile Include="Bot\ResolveHelper.cs" />
     <Compile Include="Bot\UserUpdateData.cs" />
     <Compile Include="Bot\WatchedChannel.cs" />
     <Compile Include="Database\Settings.Designer.cs">
       <DependentUpon>Settings.resx</DependentUpon>
-      <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
     </Compile>
     <Compile Include="Database\DbConnection.cs" />
     <Compile Include="Extensions.cs" />

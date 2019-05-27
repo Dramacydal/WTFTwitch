@@ -33,6 +33,7 @@ namespace WTFTwitch
             };
 
             manager = new BotManager();
+            manager.Start();
             while(!needStop)
                 Thread.Sleep(50);
             Console.WriteLine("Stopping...");

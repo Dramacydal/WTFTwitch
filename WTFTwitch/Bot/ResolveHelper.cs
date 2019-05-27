@@ -17,7 +17,7 @@ namespace WTFTwitch.Bot
             this._api = api;
         }
 
-        public string GetUserById(string userId)
+        public string GetUserNameById(string userId)
         {
             var userName = _userNamesById.Get(userId);
             if (userName != null)
@@ -41,7 +41,7 @@ namespace WTFTwitch.Bot
             }
         }
 
-        public string GetUserByName(string userName)
+        public string GetUserIdByName(string userName)
         {
             var userId = _userIdsByName.Get(userName);
             if (userId != null)
