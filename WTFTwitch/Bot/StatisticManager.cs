@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using WTFTwitch.Database;
+using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {
@@ -70,7 +71,7 @@ namespace WTFTwitch.Bot
                 }
                 catch(Exception e)
                 {
-                    Console.WriteLine($"Statisticmanager update thread failed: {e.Message}");
+                    Logger.Instance.Error($"Statisticmanager update thread failed: {e.Message}");
                 }
 
                 Thread.Sleep(10000);
@@ -98,7 +99,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error: {e.Message}");
+                Logger.Instance.Error($"Error: {e.Message}");
             }
         }
 

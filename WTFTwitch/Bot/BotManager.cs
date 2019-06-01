@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using WTFTwitch.Database;
+using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {
@@ -25,7 +26,7 @@ namespace WTFTwitch.Bot
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"Failed to initialize bot: {e.Message}");
+                   Logger.Instance.Error($"Failed to initialize bot: {e.Message}");
                 }
             }
         }
@@ -68,7 +69,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error: {e.Message}");
+                Logger.Instance.Error($"Failed to load bot settings: {e.Message}");
             }
 
             return botSettings;

@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using TwitchLib.Api;
+using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {
@@ -36,7 +37,7 @@ namespace WTFTwitch.Bot
             }
             catch(Exception e)
             {
-                Console.WriteLine($"Errors: {e.Message}");
+                Logger.Instance.Error($"Errors: {e.Message}");
                 return null;
             }
         }
@@ -60,7 +61,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Errors: {e.Message}");
+                Logger.Instance.Error($"Errors: {e.Message}");
                 return null;
             }
         }

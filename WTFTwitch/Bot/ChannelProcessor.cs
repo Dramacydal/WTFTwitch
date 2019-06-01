@@ -10,6 +10,7 @@ using TwitchLib.Api;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using WTFTwitch.Bot.Commands;
+using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {
@@ -61,11 +62,16 @@ namespace WTFTwitch.Bot
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"Processor {Channel.Name} Update loop failed: {e.Message}");
+                    Logger.Instance.Error($"Processor {Channel.Name} Update loop failed: {e.Message}");
                 }
 
                 Thread.Sleep(10000);
             }
+        }
+
+        internal void AddVoiceTask(string text)
+        {
+            throw new NotImplementedException();
         }
 
         private bool CheckIsBroadcasting()
@@ -103,7 +109,7 @@ namespace WTFTwitch.Bot
                 var userId = _resolveHelper.GetUserIdByName(chatter.Username);
                 if (userId == null)
                 {
-                    Console.WriteLine($"Failed to resolve chatter {chatter.Username}");
+                    Logger.Instance.Warn($"Failed to resolve chatter {chatter.Username}");
                     continue;
                 }
 
@@ -114,7 +120,7 @@ namespace WTFTwitch.Bot
         public void OnMessageReceived(object sender, OnMessageReceivedArgs e)
         {
             _statisticManager.Update(e.ChatMessage.UserId, false);
-            Console.WriteLine($"Received message: {e.ChatMessage.Message} channel: {e.ChatMessage.Channel}");
+            Logger.Instance.Info($"Received message: {e.ChatMessage.Message} channel: {e.ChatMessage.Channel}");
         }
 
         public void OnCommand(object sender, OnChatCommandReceivedArgs e)
@@ -124,12 +130,12 @@ namespace WTFTwitch.Bot
 
         public void OnUserLeft(object sender, OnUserLeftArgs e)
         {
-            Console.WriteLine($"User left: {e.Username} channel: {Channel.Name}");
+            Logger.Instance.Info($"User left: {e.Username} channel: {Channel.Name}");
 
             var userId = _resolveHelper.GetUserIdByName(e.Username);
             if (userId == null)
             {
-                Console.WriteLine($"Failed to resolve left user {e.Username} for channel {Channel.Name}");
+                Logger.Instance.Warn($"Failed to resolve left user {e.Username} for channel {Channel.Name}");
                 return;
             }
 
@@ -138,12 +144,12 @@ namespace WTFTwitch.Bot
 
         public void OnUserJoined(object sender, OnUserJoinedArgs e)
         {
-            Console.WriteLine($"User joined {e.Username} channel: {Channel.Name}");
+            Logger.Instance.Info($"User joined {e.Username} channel: {Channel.Name}");
 
             var userId = _resolveHelper.GetUserIdByName(e.Username);
             if (userId == null)
             {
-                Console.WriteLine($"Failed to resolve left user {e.Username} for channel {Channel.Name}");
+                Logger.Instance.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.Name}");
                 return;
             }
 
@@ -152,12 +158,12 @@ namespace WTFTwitch.Bot
 
         public void OnJoinedChannel(object sender)
         {
-            Console.WriteLine($"Channel joined: {this.Channel}");
+            Logger.Instance.Info($"Channel joined: {this.Channel}");
         }
 
         public void OnLeftChannel(object sender)
         {
-            Console.WriteLine($"Channel left: {this.Channel}");
+            Logger.Instance.Info($"Channel left: {this.Channel}");
         }
 
         public void Stop(bool async = false)

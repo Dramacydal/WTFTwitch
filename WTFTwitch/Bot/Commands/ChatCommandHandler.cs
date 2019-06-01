@@ -29,6 +29,13 @@ namespace WTFTwitch.Bot.Commands
             _client.SendMessage(_channel.Name, message);
         }
 
+        private void SendEmote(string message, params object[] args)
+        {
+            message = string.Format(message, args);
+
+            SendMessage($"/me {message}");
+        }
+
         public void Handle(ChatCommand command)
         {
             switch (command.CommandText)
@@ -42,9 +49,17 @@ namespace WTFTwitch.Bot.Commands
                 case "ignorestat":
                     HandleIgnoreStatCommand(command);
                     break;
+                case "tts":
+                    HandleTTSCommand(command);
+                    break;
                 default:
                     break;
             }
+        }
+
+        private void HandleTTSCommand(ChatCommand command)
+        {
+            _processor.AddVoiceTask(command.ArgumentsAsString);
         }
 
         class UserStat
@@ -134,7 +149,7 @@ namespace WTFTwitch.Bot.Commands
         {
             if (!_processor.IsBroadcasting)
             {
-                SendMessage("Stream is offline");
+                SendEmote("Stream is offline");
                 return;
             }
 
@@ -145,7 +160,7 @@ namespace WTFTwitch.Bot.Commands
                 var res = _api.V5.Streams.GetStreamByUserAsync(_channel.Id, "live").Result;
                 if (res.Stream == null)
                 {
-                    SendMessage("Uptime info not available");
+                    SendEmote("Uptime info not available");
                     CacheHelper.Save(cacheKey, default(DateTime), TimeSpan.FromMinutes(1));
                     return;
                 }
@@ -158,7 +173,7 @@ namespace WTFTwitch.Bot.Commands
             if (diff.TotalSeconds < 0)
                 diff = default(TimeSpan);
 
-            SendMessage("Stream is up for: {0}", diff.AsPrettyReadable());
+            SendEmote("Stream is up for: {0}", diff.AsPrettyReadable());
         }
 
         private void HandleIgnoreStatCommand(ChatCommand command)

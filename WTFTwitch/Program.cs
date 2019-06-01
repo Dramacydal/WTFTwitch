@@ -16,6 +16,7 @@ using TwitchLib.Client.Events;
 using TwitchLib.Client.Extensions;
 using TwitchLib.Client.Models;
 using WTFTwitch.Bot;
+using WTFTwitch.Logging;
 
 namespace WTFTwitch
 {
@@ -36,7 +37,7 @@ namespace WTFTwitch
             manager.Start();
             while(!needStop)
                 Thread.Sleep(50);
-            Console.WriteLine("Stopping...");
+            Logger.Instance.Info("Stopping...");
             manager.Stop();
         }
     }
