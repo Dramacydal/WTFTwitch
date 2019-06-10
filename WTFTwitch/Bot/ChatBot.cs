@@ -23,8 +23,11 @@ namespace WTFTwitch.Bot
         public TwitchAPI Api { get; private set; }
         public TwitchClient Client { get; private set; }
 
+        public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
+
         private BotSettings _settings;
 
+        private List<WatchedChannel> _watchedChannels = new List<WatchedChannel>();
         private Dictionary<string, ChannelProcessor> _channelProcessors = new Dictionary<string, ChannelProcessor>();
 
         private WhisperCommandHandler _whisperCommandHandler;
@@ -34,6 +37,10 @@ namespace WTFTwitch.Bot
         public string BotName => Client.TwitchUsername;
 
         private bool _isStopping = false;
+
+        private CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
+
+        private Task _updateTask;
 
         public ChatBot(BotSettings settings)
         {
@@ -73,10 +80,23 @@ namespace WTFTwitch.Bot
 
             Client.OnUserJoined += Client_OnUserJoined;
             Client.OnUserLeft += Client_OnUserLeft;
+            Client.OnExistingUsersDetected += Client_OnExistingUsersDetected;
 
             Client.OnMessageReceived += Client_OnMessageReceived;
             Client.OnChatCommandReceived += Client_OnChatCommandReceived;
             Client.OnWhisperCommandReceived += Client_OnWhisperCommandReceived;
+        }
+
+        private void Client_OnExistingUsersDetected(object sender, OnExistingUsersDetectedArgs e)
+        {
+            try
+            {
+                GetChannelProcessor(e.Channel)?.OnExistingUsersDetected(sender, e);
+            }
+            catch (Exception ex)
+            {
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+            }
         }
 
         private void Client_OnError(object sender, OnErrorEventArgs e)
@@ -101,7 +121,6 @@ namespace WTFTwitch.Bot
             else
             {
                 Logger.Instance.Error($"Twitch client disconnected, reconnecting...");
-                Client.Connect();
             }
         }
 
@@ -116,10 +135,18 @@ namespace WTFTwitch.Bot
                 Telegram = new TelegramBotClient(_settings.TelegramToken);
         }
 
-        private void AddWatchedChannel(WatchedChannel channel)
+        private void ConnectToChannel(WatchedChannel channel)
         {
-            _channelProcessors[channel.Name] = new ChannelProcessor(channel, _settings);
-            Client.JoinChannel(channel.Name);
+            if (!_channelProcessors.ContainsKey(channel.Name))
+                _channelProcessors[channel.Name] = new ChannelProcessor(channel, _settings);
+
+            if (!HasJoinedChannel(channel.Name))
+                Client.JoinChannel(channel.Name);
+        }
+
+        private bool HasJoinedChannel(string channelName)
+        {
+            return Client.JoinedChannels.Any(_ => _.Channel.ToLower() == channelName.ToLower());
         }
 
         private ChannelProcessor GetChannelProcessor(string channelName)
@@ -127,19 +154,29 @@ namespace WTFTwitch.Bot
             return _channelProcessors.FirstOrDefault(_ => _.Value.Channel.Name.ToLower() == channelName.ToLower()).Value;
         }
 
-        public void Stop()
+        public void Stop(bool async = false)
         {
             _isStopping = true;
+
             foreach (var processor in _channelProcessors)
-                processor.Value.Stop();
+                processor.Value.Stop(async);
+
+            _updateThreadTokenSource.Cancel();
 
             Client.Disconnect();
+
+            if (!async)
+            {
+                while (!IsStopped)
+                    Thread.Sleep(50);
+            }
+
             _isStopping = false;
         }
 
         private List<WatchedChannel> LoadWatchedChannels()
         {
-            var WatchedChannels = new Dictionary<string, WatchedChannel>();
+            var watchedChannels = new Dictionary<string, WatchedChannel>();
 
             try
             {
@@ -156,7 +193,7 @@ namespace WTFTwitch.Bot
                             var ChannelId = reader.GetString(0);
 
                             WatchedChannel channel;
-                            if (WatchedChannels.TryGetValue(ChannelId, out channel))
+                            if (watchedChannels.TryGetValue(ChannelId, out channel))
                             {
                                 if (!reader.IsDBNull(1))
                                     channel.TelegramNotifyChannels.Add(reader.GetString(1));
@@ -170,7 +207,7 @@ namespace WTFTwitch.Bot
                                 if (!reader.IsDBNull(1))
                                     channel.TelegramNotifyChannels.Add(reader.GetString(1));
 
-                                WatchedChannels[ChannelId] = channel;
+                                watchedChannels[ChannelId] = channel;
                             }
                         }
                     }
@@ -183,7 +220,73 @@ namespace WTFTwitch.Bot
                 return new List<WatchedChannel>();
             }
 
-            return WatchedChannels.Select(_ => _.Value).ToList();
+            var channels = watchedChannels.Select(_ => _.Value).ToList();
+            foreach (var channel in channels)
+            {
+                try
+                {
+                    var res = Api.V5.Channels.GetChannelByIDAsync(channel.Id).Result;
+                    if (res == null)
+                    {
+                        Logger.Instance.Warn($"Failed to resolve channel with id '{channel.Id}");
+                        continue;
+                    }
+
+                    channel.Name = res.Name.ToLower();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Instance.Error($"Failed to add watched channel: {ex.Message}");
+                    continue;
+                }
+            }
+
+            return channels;
+        }
+
+        private void UpdateThread(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    ReconnectIfNeeded();
+                }
+                catch (Exception e)
+                {
+                    Logger.Instance.Error($"Chat bot update loop failed: {e.Message}");
+                }
+
+                Thread.Sleep(10000);
+            }
+        }
+
+        private void ReconnectIfNeeded()
+        {
+            if (_isStopping)
+                return;
+
+            if (!Client.IsInitialized)
+                return;
+
+            if (!Client.IsConnected)
+                Client.Connect();
+            else
+            {
+                foreach (var channel in _watchedChannels)
+                    if (!HasJoinedChannel(channel.Name))
+                    {
+                        try
+                        {
+                            ConnectToChannel(channel);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Instance.Error($"Failed to connect to channel: {ex.Message}");
+                            continue;
+                        }
+                    }
+            }
         }
 
         private void Client_OnMessageReceived(object sender, OnMessageReceivedArgs e)
@@ -238,27 +341,25 @@ namespace WTFTwitch.Bot
         {
             Logger.Instance.Info($"Bot connected: {e.BotUsername}");
 
-            var channels = LoadWatchedChannels();
-            if (channels.Count == 0)
-                return;
+            ConnectChannels();
+            if (_updateTask == null)
+                _updateTask = Task.Run(() => UpdateThread(_updateThreadTokenSource.Token));
+        }
 
-            foreach (var channel in channels)
+        private void ConnectChannels()
+        {
+            if (_watchedChannels.Count == 0)
+                _watchedChannels = LoadWatchedChannels();
+
+            foreach (var channel in _watchedChannels)
             {
                 try
                 {
-                    var res = Api.V5.Channels.GetChannelByIDAsync(channel.Id).Result;
-                    if (res == null)
-                    {
-                        Logger.Instance.Warn($"Failed to resolve channel with id '{channel.Id}");
-                        continue;
-                    }
-
-                    channel.Name = res.Name.ToLower();
-                    AddWatchedChannel(channel);
+                    ConnectToChannel(channel);
                 }
                 catch (Exception ex)
                 {
-                    Logger.Instance.Error($"Failed to add watched channel: {ex.Message}");
+                    Logger.Instance.Error($"Failed to connect to channel: {ex.Message}");
                     continue;
                 }
             }

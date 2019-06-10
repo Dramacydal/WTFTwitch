@@ -22,7 +22,7 @@ namespace WTFTwitch.Bot.Commands
 
         public void Handle(WhisperCommand command)
         {
-            switch (command.CommandText)
+            switch (command.CommandText.ToLower())
             {
                 case "install":
                     HandleInstallCommand(command);

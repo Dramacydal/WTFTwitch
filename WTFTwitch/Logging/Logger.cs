@@ -31,7 +31,7 @@ namespace WTFTwitch.Logging
         {
             var config = new NLog.Config.LoggingConfiguration();
 
-            var fileLog = new FileTarget("logfile") { FileName = "file.txt" };
+            var fileLog = new FileTarget("logfile") { FileName = "WTFTwitch.log" };
             fileLog.Layout = DefaultLayout;
 
             var consoleLog = new ColoredConsoleTarget("consolelog");

@@ -1,12 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.InputFiles;
 using TwitchLib.Api;
+using TwitchLib.Api.V5.Models.Streams;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using WTFTwitch.Bot.Commands;
@@ -14,6 +14,8 @@ using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {
+    using TwitchStream = Stream;
+
     class ChannelProcessor
     {
         public WatchedChannel Channel { get; }
@@ -84,15 +86,28 @@ namespace WTFTwitch.Bot
             var OldOnline = IsBroadcasting;
             IsBroadcasting = CheckIsBroadcasting();
 
-            if (OldOnline != IsBroadcasting)
+            if (OldOnline != IsBroadcasting && IsBroadcasting)
             {
                 var stream = _api.V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
                 if (stream.Stream != null)
+                    NotififyOnline(stream.Stream);
+            }
+        }
+
+        private void NotififyOnline(TwitchStream stream)
+        {
+            if (Channel.TelegramNotifyChannels.Count == 0)
+                return;
+
+            var message = $"{stream.Channel.Status}\r\n{stream.Game}\r\nhttps://www.twitch.tv/{Channel.Name}";
+
+            using (var client = new WebClient())
+            {
+                using (var file = client.OpenRead(stream.Preview.Large))
                 {
-                    var message = $"{stream.Stream.Channel.Status}\r\n{stream.Stream.Game}";
                     foreach (var notifyChannel in Channel.TelegramNotifyChannels)
                     {
-                        var res = Settings.Telegram?.SendPhotoAsync(new ChatId(notifyChannel), new InputOnlineFile(stream.Stream.Preview.Large), message).Result;
+                        var res = Settings.Telegram?.SendPhotoAsync(new ChatId(notifyChannel), new InputOnlineFile(file), message).Result;
                     }
                 }
             }
@@ -158,12 +173,22 @@ namespace WTFTwitch.Bot
 
         public void OnJoinedChannel(object sender)
         {
-            Logger.Instance.Info($"Channel joined: {this.Channel}");
+            Logger.Instance.Info($"Channel joined: {this.Channel.Name}");
         }
 
         public void OnLeftChannel(object sender)
         {
-            Logger.Instance.Info($"Channel left: {this.Channel}");
+            Logger.Instance.Info($"Channel left: {this.Channel.Name}");
+        }
+
+        public void OnExistingUsersDetected(object sender, OnExistingUsersDetectedArgs e)
+        {
+            var message = $"Existing users: ";
+            message += string.Join(", ", e.Users.Take(50));
+            if (e.Users.Count > 50)
+                message += $" (and {e.Users.Count - 50} more)"; 
+
+            Logger.Instance.Info(message);
         }
 
         public void Stop(bool async = false)

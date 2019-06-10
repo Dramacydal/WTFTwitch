@@ -51,7 +51,7 @@ namespace WTFTwitch.Bot
             try
             {
                 var user = _api.V5.Users.GetUserByNameAsync(userName).Result;
-                if (user.Matches.Count() == 0)
+                if (user.Matches.Length == 0)
                     return null;
 
                 _userNamesById[user.Matches[0].Name] = userName;

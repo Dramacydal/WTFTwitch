@@ -38,7 +38,7 @@ namespace WTFTwitch.Bot.Commands
 
         public void Handle(ChatCommand command)
         {
-            switch (command.CommandText)
+            switch (command.CommandText.ToLower())
             {
                 case "stats":
                     HandleStatsCommand(command);
