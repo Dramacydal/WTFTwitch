@@ -7,9 +7,9 @@ using NLog;
 using NLog.Conditions;
 using NLog.Targets;
 
-namespace WTFTwitch.Logging
+namespace WTFShared.Logging
 {
-    static class Logger
+    public static class Logger
     {
         private static NLog.Logger _logInstance = null;
 

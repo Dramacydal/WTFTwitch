@@ -12,9 +12,9 @@ using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
 using TwitchLib.Communication.Events;
+using WTFShared.Database;
+using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
-using WTFTwitch.Database;
-using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {

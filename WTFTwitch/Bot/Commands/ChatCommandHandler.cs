@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using TwitchLib.Api;
 using TwitchLib.Client;
 using TwitchLib.Client.Models;
-using WTFTwitch.Database;
+using WTFShared.Database;
 
 namespace WTFTwitch.Bot.Commands
 {

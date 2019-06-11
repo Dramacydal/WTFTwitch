@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading;
-using WTFTwitch.Logging;
+using WTFShared.Logging;
 
 namespace WTFTwitch.Lib
 {

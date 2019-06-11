@@ -9,8 +9,9 @@ using TwitchLib.Api;
 using TwitchLib.Api.V5.Models.Streams;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
+using WTFShared.Database;
+using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
-using WTFTwitch.Logging;
 
 namespace WTFTwitch.Bot
 {

@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace WTFTwitch.Database {
+namespace WTFShared.Database {
     using System;
     
     
@@ -39,7 +39,7 @@ namespace WTFTwitch.Database {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("WTFTwitch.Database.Settings", typeof(Settings).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("WTFShared.Database.Settings", typeof(Settings).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;

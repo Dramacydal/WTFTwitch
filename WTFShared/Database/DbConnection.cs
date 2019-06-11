@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace WTFTwitch.Database
+namespace WTFShared.Database
 {
     public static class DbConnection
     {

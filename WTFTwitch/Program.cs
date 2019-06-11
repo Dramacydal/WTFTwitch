@@ -15,8 +15,8 @@ using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Extensions;
 using TwitchLib.Client.Models;
+using WTFShared.Logging;
 using WTFTwitch.Bot;
-using WTFTwitch.Logging;
 
 namespace WTFTwitch
 {

@@ -2,7 +2,7 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using TwitchLib.Api;
-using WTFTwitch.Logging;
+using WTFShared.Logging;
 
 namespace WTFTwitch.Bot
 {
