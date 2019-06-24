@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
 
@@ -34,10 +35,11 @@ namespace WTFTwitch.Bot
         public void Update(string userId, bool left)
         {
             var updateData = _updateStorage.GetOrAdd(userId, new UserUpdateData(userId));
-            updateData.Update();
 
             if (left)
             {
+                updateData.UpdateLastSeen();
+
                 _updateStorage.Remove(userId);
                 _removedUpdateQueue.Enqueue(updateData);
             }
@@ -55,23 +57,23 @@ namespace WTFTwitch.Bot
                         if (updateData == null)
                             break;
 
-                        var diff = updateData.GetLifetime();
+                        var diff = updateData.TimeFromLastSeen();
                         UpdateUserChannelStats(updateData.UserId, updateData.LastSeen, (int)diff.TotalSeconds, false);
                     }
 
                     foreach (var updateData in _updateStorage)
                     {
-                        var diff = updateData.Value.GetLifetime();
+                        var diff = updateData.Value.TimeFromLastSeen();
                         if (diff.TotalSeconds <= 0)
                             continue;
 
                         UpdateUserChannelStats(updateData.Value.UserId, updateData.Value.LastSeen, (int)diff.TotalSeconds, true);
-                        updateData.Value.Reset();
+                        updateData.Value.UpdateLastSeen();
                     }
                 }
                 catch(Exception e)
                 {
-                    Logger.Instance.Error($"Statisticmanager update thread failed: {e.Message}");
+                    Logger.Instance.Error($"Statisticmanager update thread failed: {e.Info()}");
                 }
 
                 Thread.Sleep(10000);
@@ -99,7 +101,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Error: {e.Message}");
+                Logger.Instance.Error($"Error: {e.Info()}");
             }
         }
 
@@ -111,6 +113,16 @@ namespace WTFTwitch.Bot
                 while (!IsStopped)
                     Thread.Sleep(50);
             }
+        }
+
+        public void SyncChatters(IEnumerable<string> chatters)
+        {
+            var missings = _updateStorage.Where(_ => !chatters.Contains(_.Key));
+            foreach (var missing in missings)
+                Update(missing.Key, true);
+
+            foreach (var chatter in chatters)
+                Update(chatter, false);
         }
     }
 }

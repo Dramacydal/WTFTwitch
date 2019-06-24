@@ -18,7 +18,7 @@ namespace WTFTwitch.Bot
             Reset();
         }
 
-        public void Update()
+        public void UpdateLastSeen()
         {
             LastSeen = DateTime.UtcNow;
         }
@@ -28,9 +28,9 @@ namespace WTFTwitch.Bot
             Created = LastSeen = DateTime.UtcNow;
         }
 
-        public TimeSpan GetLifetime()
+        public TimeSpan TimeFromLastSeen()
         {
-            return (DateTime.UtcNow - Created);
+            return (DateTime.UtcNow - LastSeen);
         }
     }
 }

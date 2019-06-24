@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using WTFShared;
 using WTFShared.Logging;
 
 namespace WTFTwitch.Lib
@@ -52,7 +53,7 @@ namespace WTFTwitch.Lib
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Error while executing timer: {e.Message}");
+                Logger.Instance.Error($"Error while executing timer: {e.Info()}");
             }
         }
     }

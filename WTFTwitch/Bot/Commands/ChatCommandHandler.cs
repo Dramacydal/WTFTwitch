@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using TwitchLib.Api;
 using TwitchLib.Client;
@@ -52,9 +53,29 @@ namespace WTFTwitch.Bot.Commands
                 case "tts":
                     HandleTTSCommand(command);
                     break;
+                case "resolve":
+                    HandleResolveCommand(command);
+                    break;
                 default:
                     break;
             }
+        }
+
+        private void HandleResolveCommand(ChatCommand command)
+        {
+            if (command.ArgumentsAsList.Count == 0)
+                return;
+
+            var nameOrId = command.ArgumentsAsList[0];
+
+            var res = _resolveHelper.Resolve(nameOrId);
+            if (res.Count == 0)
+            {
+                SendMessage($"Failed to resolve user '{nameOrId}'");
+                return;
+            }
+
+            SendMessage(string.Join(", ", res.Select(_ => _.ToString())));
         }
 
         private void HandleTTSCommand(ChatCommand command)
@@ -64,8 +85,7 @@ namespace WTFTwitch.Bot.Commands
 
         class UserStat
         {
-            public string UserId;
-            public string UserName;
+            public UserInfo Info;
             public int WatchTime;
         }
 
@@ -74,8 +94,7 @@ namespace WTFTwitch.Bot.Commands
             if (command.ArgumentsAsList.Count == 0)
             {
                 var cacheKey = $"stats_{_channel.Id}";
-                var stats = "";
-                if (!CacheHelper.Load(cacheKey, out stats) || string.IsNullOrEmpty(stats))
+                if (!CacheHelper.Load(cacheKey, out string stats) || string.IsNullOrEmpty(stats))
                 {
                     var userStats = new List<UserStat>();
 
@@ -92,8 +111,7 @@ namespace WTFTwitch.Bot.Commands
                             {
                                 userStats.Add(new UserStat()
                                 {
-                                    UserId = reader.GetString(0),
-                                    UserName = _resolveHelper.GetUserNameById(reader.GetString(0)),
+                                    Info = _resolveHelper.GetUserById(reader.GetString(0)),
                                     WatchTime = reader.GetInt32(1)
                                 });
                             }
@@ -101,29 +119,31 @@ namespace WTFTwitch.Bot.Commands
                     }
 
                     var counter = 0;
-                    var lines = userStats.OrderByDescending(_ => _.WatchTime).Select(_ => string.Format("{0}. {1} ({2})", ++counter, _.UserName, TimeSpan.FromSeconds(_.WatchTime).AsPrettyReadable()));
+                    var lines = userStats.OrderByDescending(_ => _.WatchTime).Select(_ => string.Format("{0}. {1} ({2})", ++counter, _.Info.DisplayName, TimeSpan.FromSeconds(_.WatchTime).AsPrettyReadable()));
                     stats = string.Join("\r\n", lines);
                     CacheHelper.Save(cacheKey, stats);
                 }
 
-                if (string.IsNullOrEmpty(stats))
-                    SendMessage("No stats available");
-                else
-                    SendMessage(stats);
+                SendMessage(string.IsNullOrEmpty(stats) ? "No stats available" : stats);
             }
             else
             {
                 var userName = command.ArgumentsAsList[0];
 
                 var cacheKey = $"stats_{_channel.Id}_{userName}";
-                var time = 0;
-                if (!CacheHelper.Load(cacheKey, out time) || time == 0)
+                if (!CacheHelper.Load(cacheKey, out int time) || time == 0)
                 {
-                    var userId = _resolveHelper.GetUserIdByName(userName);
-                    if (userId == null)
+                    var userInfos = _resolveHelper.Resolve(userName);
+                    if (userInfos.Count == 0)
                     {
                         SendMessage($"User {userName} not found");
                         CacheHelper.Save(cacheKey, 0);
+                        return;
+                    }
+                    else if (userInfos.Count > 1)
+                    {
+                        SendMessage($"User {userName} resolves in more than 1 entities, try specifying id instead: " +
+                            string.Join(", ", userInfos.Select(_ => _.ToString())));
                         return;
                     }
 
@@ -131,7 +151,7 @@ namespace WTFTwitch.Bot.Commands
                     {
                         query.Parameters.AddWithValue("@bot_id", _channel.BotId);
                         query.Parameters.AddWithValue("@channel_id", _channel.Id);
-                        query.Parameters.AddWithValue("@user_id", userId);
+                        query.Parameters.AddWithValue("@user_id", userInfos[0].Id);
 
                         time = Convert.ToInt32(query.ExecuteScalar());
                         CacheHelper.Save(cacheKey, time);
@@ -154,8 +174,7 @@ namespace WTFTwitch.Bot.Commands
             }
 
             var cacheKey = $"uptime_{_channel.Id}";
-            DateTime startDate;
-            if (!CacheHelper.Load(cacheKey, out startDate) || startDate.IsEmpty())
+            if (!CacheHelper.Load(cacheKey, out DateTime startDate) || startDate.IsEmpty())
             {
                 var res = _api.V5.Streams.GetStreamByUserAsync(_channel.Id, "live").Result;
                 if (res.Stream == null)
@@ -187,29 +206,35 @@ namespace WTFTwitch.Bot.Commands
                 return;
             }
 
-            var userName = command.ArgumentsAsList[0];
-            var userId = _resolveHelper.GetUserIdByName(userName);
-            if (userId == null)
+            var nameOrId = command.ArgumentsAsList[0];
+            var userInfos = _resolveHelper.Resolve(nameOrId);
+            if (userInfos.Count == 0)
             {
-                SendMessage($"User {userName} not found");
+                SendMessage($"User {nameOrId} not found");
+                return;
+            }
+            else if (userInfos.Count > 1)
+            {
+                SendMessage($"User {nameOrId} resolves in more than 1 entities, try specifying id instead: " +
+                    string.Join(", ", userInfos.Select(_ => _.ToString())));
                 return;
             }
 
             if (command.ArgumentsAsList.Count == 1)
             {
-                AddIgnoreUserStat(userId);
-                SendMessage($"Added user '{userName}' to ignore stat list");
+                AddIgnoreUserStat(userInfos[0].Id);
+                SendMessage($"Added user '{userInfos[0].ToString()}' to ignore stat list");
             }
             else
             {
-                RemoveIgnoreUserStat(userId);
-                SendMessage($"Removed user '{userName}' from ignore stat list");
+                RemoveIgnoreUserStat(userInfos[0].Id);
+                SendMessage($"Removed user '{userInfos[0].ToString()}' from ignore stat list");
             }
         }
 
         private void ListIgnoreStats()
         {
-            List<string> lines = new List<string>();
+            var lines = new List<string>();
             using (var query = new MySqlCommand("SELECT user_id FROM user_ignore_stats", DbConnection.GetConnection()))
             {
                 
@@ -219,11 +244,8 @@ namespace WTFTwitch.Bot.Commands
                     {
                         var userId = reader.GetString(0);
 
-                        var userName = _resolveHelper.GetUserNameById(userId);
-                        if (userName != null)
-                            lines.Add($"{userName} - {userId}");
-                        else
-                            lines.Add($"<unknown> - {userId}");
+                        var userInfo = _resolveHelper.GetUserById(userId);
+                        lines.Add(userInfo != null ? userInfo.ToString() : $"'{userId}': <unknown>");
                     }
                 }
             }
@@ -237,7 +259,7 @@ namespace WTFTwitch.Bot.Commands
             SendMessage(string.Join(", ", lines));
         }
 
-        private void RemoveIgnoreUserStat(string userId)
+        private static void RemoveIgnoreUserStat(string userId)
         {
             using (var query = new MySqlCommand("DELETE FROM user_ignore_stats WHERE user_id = @user_id", DbConnection.GetConnection()))
             {
@@ -247,7 +269,7 @@ namespace WTFTwitch.Bot.Commands
             }
         }
 
-        private void AddIgnoreUserStat(string userId)
+        private static void AddIgnoreUserStat(string userId)
         {
             using (var query = new MySqlCommand("REPLACE INTO user_ignore_stats (user_id) VALUE (@user_id)", DbConnection.GetConnection()))
             {

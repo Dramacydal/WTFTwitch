@@ -12,6 +12,7 @@ using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
 using TwitchLib.Communication.Events;
+using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
@@ -95,13 +96,13 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
         private void Client_OnError(object sender, OnErrorEventArgs e)
         {
-            Logger.Instance.Error($"Twitch client error fired: {e.Exception.Message}, {e.Exception.StackTrace}");
+            Logger.Instance.Error($"Twitch client error fired: {e.Exception.Info()}, {e.Exception.StackTrace}");
         }
 
         private void Client_OnReconnected(object sender, OnReconnectedEventArgs e)
@@ -146,7 +147,8 @@ namespace WTFTwitch.Bot
 
         private bool HasJoinedChannel(string channelName)
         {
-            return Client.JoinedChannels.Any(_ => _.Channel.ToLower() == channelName.ToLower());
+            return Client.JoinedChannels.Any(
+                _ => _.Channel.ToLower() == channelName.ToLower());
         }
 
         private ChannelProcessor GetChannelProcessor(string channelName)
@@ -215,7 +217,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Faled to load watched channels: {e.Message}");
+                Logger.Instance.Error($"Faled to load watched channels: {e.Info()}");
 
                 return new List<WatchedChannel>();
             }
@@ -234,9 +236,9 @@ namespace WTFTwitch.Bot
 
                     channel.Name = res.Name.ToLower();
                 }
-                catch (Exception ex)
+                catch (Exception e)
                 {
-                    Logger.Instance.Error($"Failed to add watched channel: {ex.Message}");
+                    Logger.Instance.Error($"Failed to add watched channel: {e.Info()}");
                     continue;
                 }
             }
@@ -254,7 +256,7 @@ namespace WTFTwitch.Bot
                 }
                 catch (Exception e)
                 {
-                    Logger.Instance.Error($"Chat bot update loop failed: {e.Message}");
+                    Logger.Instance.Error($"Chat bot update loop failed: {e.Info()}");
                 }
 
                 Thread.Sleep(10000);
@@ -282,7 +284,7 @@ namespace WTFTwitch.Bot
                         }
                         catch (Exception ex)
                         {
-                            Logger.Instance.Error($"Failed to connect to channel: {ex.Message}");
+                            Logger.Instance.Error($"Failed to connect to channel: {ex.Info()}");
                             continue;
                         }
                     }
@@ -297,7 +299,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -309,7 +311,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -321,7 +323,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -333,7 +335,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -359,7 +361,7 @@ namespace WTFTwitch.Bot
                 }
                 catch (Exception ex)
                 {
-                    Logger.Instance.Error($"Failed to connect to channel: {ex.Message}");
+                    Logger.Instance.Error($"Failed to connect to channel: {ex.Info()}");
                     continue;
                 }
             }
@@ -373,7 +375,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -385,7 +387,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Message}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -402,7 +404,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"Failed to handle whisper command: {ex.Message}");
+                Logger.Instance.Error($"Failed to handle whisper command: {ex.Info()}");
             }
         }
     }

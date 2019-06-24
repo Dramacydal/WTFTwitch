@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -9,7 +10,7 @@ using TwitchLib.Api;
 using TwitchLib.Api.V5.Models.Streams;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
-using WTFShared.Database;
+using WTFShared;
 using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
 
@@ -65,7 +66,7 @@ namespace WTFTwitch.Bot
                 }
                 catch (Exception e)
                 {
-                    Logger.Instance.Error($"Processor {Channel.Name} Update loop failed: {e.Message}");
+                    Logger.Instance.Error($"Processor {Channel.Name} UpdateThread loop failed: {e.Info()}");
                 }
 
                 Thread.Sleep(10000);
@@ -84,10 +85,10 @@ namespace WTFTwitch.Bot
 
         private void UpdateChannel()
         {
-            var OldOnline = IsBroadcasting;
+            var oldOnline = IsBroadcasting;
             IsBroadcasting = CheckIsBroadcasting();
 
-            if (OldOnline != IsBroadcasting && IsBroadcasting)
+            if (oldOnline != IsBroadcasting && IsBroadcasting)
             {
                 var stream = _api.V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
                 if (stream.Stream != null)
@@ -120,23 +121,34 @@ namespace WTFTwitch.Bot
                 return;
 
             var chatters = _api.Undocumented.GetChattersAsync(Channel.Name).Result;
-            foreach (var chatter in chatters)
-            {
-                var userId = _resolveHelper.GetUserIdByName(chatter.Username);
-                if (userId == null)
-                {
-                    Logger.Instance.Warn($"Failed to resolve chatter {chatter.Username}");
-                    continue;
-                }
+            if (chatters.Count == 0)
+                return;
 
-                _statisticManager.Update(userId, false);
+            var c = _resolveHelper.GetUsersByNames(chatters.Select(_ => _.Username).ToList());
+            foreach (var chatter in c)
+            {
+                if (chatter.Value.Count == 0)
+                    Logger.Instance.Warn($"Failed to resolve chatter with name {chatter.Key}");
+                else if (chatter.Value.Count > 1)
+                {
+                    var strEntities = string.Join(", ", chatter.Value.Select(_ => _.ToString()));
+                    Logger.Instance.Warn(
+                        $"Chatter with name {chatter.Key} resolved in more than 1 entities: {strEntities}");
+                }
             }
+
+            var tmp = new List<string>();
+
+            foreach (var e in c)
+                tmp.AddRange(e.Value.Select(_ => _.Id));
+
+            _statisticManager.SyncChatters(tmp);
         }
 
         public void OnMessageReceived(object sender, OnMessageReceivedArgs e)
         {
             _statisticManager.Update(e.ChatMessage.UserId, false);
-            Logger.Instance.Info($"Received message: {e.ChatMessage.Message} channel: {e.ChatMessage.Channel}");
+            Logger.Instance.Info($"Received message: {e.ChatMessage.Message} author: {e.ChatMessage.Username} channel: {e.ChatMessage.Channel}");
         }
 
         public void OnCommand(object sender, OnChatCommandReceivedArgs e)
@@ -148,28 +160,40 @@ namespace WTFTwitch.Bot
         {
             Logger.Instance.Info($"User left: {e.Username} channel: {Channel.Name}");
 
-            var userId = _resolveHelper.GetUserIdByName(e.Username);
-            if (userId == null)
+            var userInfos = _resolveHelper.GetUsersByName(e.Username);
+            if (userInfos.Count == 0)
             {
                 Logger.Instance.Warn($"Failed to resolve left user {e.Username} for channel {Channel.Name}");
                 return;
             }
+            else if (userInfos.Count > 1)
+            {
+                Logger.Instance.Warn($"Left user {e.Username} for channel {Channel.Name} resolves in more than 1 entities: " +
+                    string.Join(", ", userInfos.Select(_ => _.ToString())));
+                return;
+            }
 
-            _statisticManager.Update(userId, true);
+            _statisticManager.Update(userInfos[0].Id, true);
         }
 
         public void OnUserJoined(object sender, OnUserJoinedArgs e)
         {
             Logger.Instance.Info($"User joined {e.Username} channel: {Channel.Name}");
 
-            var userId = _resolveHelper.GetUserIdByName(e.Username);
-            if (userId == null)
+            var userInfos = _resolveHelper.GetUsersByName(e.Username);
+            if (userInfos.Count == 0)
             {
                 Logger.Instance.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.Name}");
                 return;
             }
+            else if (userInfos.Count > 1)
+            {
+                Logger.Instance.Warn($"Joined user {e.Username} for channel {Channel.Name} resolves in more than 1 entities: " +
+                    string.Join(", ", userInfos.Select(_ => _.ToString())));
+                return;
+            }
 
-            _statisticManager.Update(userId, false);
+            _statisticManager.Update(userInfos[0].Id, false);
         }
 
         public void OnJoinedChannel(object sender)

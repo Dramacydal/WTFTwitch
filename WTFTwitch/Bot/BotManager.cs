@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
 
@@ -26,7 +27,7 @@ namespace WTFTwitch.Bot
                 }
                 catch (Exception e)
                 {
-                   Logger.Instance.Error($"Failed to initialize bot: {e.Message}");
+                   Logger.Instance.Error($"Failed to initialize bot: {e.Info()}");
                 }
             }
         }
@@ -69,7 +70,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Failed to load bot settings: {e.Message}");
+                Logger.Instance.Error($"Failed to load bot settings: {e.Info()}");
             }
 
             return botSettings;
