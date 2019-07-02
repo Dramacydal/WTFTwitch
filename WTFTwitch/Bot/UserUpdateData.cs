@@ -9,7 +9,7 @@ namespace WTFTwitch.Bot
     class UserUpdateData
     {
         public string UserId { get; }
-        public DateTime Created { get; private set; }
+        public DateTime LastUpdate { get; private set; }
         public DateTime LastSeen { get; private set; }
 
         public UserUpdateData(string userId)
@@ -18,19 +18,24 @@ namespace WTFTwitch.Bot
             Reset();
         }
 
-        public void UpdateLastSeen()
+        public void UpdateLastSeen(DateTime date)
         {
             LastSeen = DateTime.UtcNow;
         }
 
-        public void Reset()
+        public void UpdateLastUpdate()
         {
-            Created = LastSeen = DateTime.UtcNow;
+            LastUpdate = LastSeen;
         }
 
-        public TimeSpan TimeFromLastSeen()
+        public void Reset()
         {
-            return (DateTime.UtcNow - LastSeen);
+            LastUpdate = LastSeen = DateTime.UtcNow;
+        }
+
+        public TimeSpan LifeTime()
+        {
+            return LastSeen - LastUpdate;
         }
     }
 }

@@ -9,6 +9,8 @@ namespace WTFTwitch.Bot
         public string Name { get; set; }
         public int InstallDate { get; set; }
 
+        public bool CommandsEnabled { get; set; }
+
         public List<string> TelegramNotifyChannels = new List<string>();
     }
 }

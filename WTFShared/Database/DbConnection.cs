@@ -1,18 +1,14 @@
 ﻿using MySql.Data.MySqlClient;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using WTFShared.Configuration;
 
 namespace WTFShared.Database
 {
     public static class DbConnection
     {
-        private static ConcurrentDictionary<int, MySqlConnection> _connections = new ConcurrentDictionary<int, MySqlConnection>();
+        private static readonly ConcurrentDictionary<int, MySqlConnection> Connections = new ConcurrentDictionary<int, MySqlConnection>();
 
         static DbConnection()
         {
@@ -20,18 +16,20 @@ namespace WTFShared.Database
 
         public static MySqlConnection GetConnection()
         {
-            var _connection = _connections.GetOrAdd(Thread.CurrentThread.ManagedThreadId, new MySqlConnection());
-            if (_connection.ConnectionString.Length == 0)
+            var connection = Connections.GetOrAdd(Thread.CurrentThread.ManagedThreadId, new MySqlConnection());
+            if (connection.ConnectionString.Length == 0)
             {
-                _connection.ConnectionString = $"Server={Settings.Host};database={Settings.Database};UID={Settings.User};password={Settings.Password}";
-                _connection.Open();
-                _connections[Thread.CurrentThread.ManagedThreadId] = _connection;
+                var config = ConfigLoader<DbConfig>.Load();
+
+                connection.ConnectionString = $"Server={config.Host};Port={config.Port};database={config.Database};UID={config.User};password={config.Password}";
+                connection.Open();
+                Connections[Thread.CurrentThread.ManagedThreadId] = connection;
             }
 
-            if (_connection.State != ConnectionState.Open)
-                _connection.Open();
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
 
-            return _connection;
+            return connection;
         }
     }
 }

@@ -34,6 +34,7 @@ namespace WTFTwitch.Bot
         private CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
 
         private Task _updateTask;
+        private bool needNotify = false;
 
         public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
 
@@ -88,24 +89,67 @@ namespace WTFTwitch.Bot
             var oldOnline = IsBroadcasting;
             IsBroadcasting = CheckIsBroadcasting();
 
-            if (oldOnline != IsBroadcasting && IsBroadcasting)
+            if (!needNotify)
+                needNotify = IsBroadcasting && oldOnline != IsBroadcasting;
+
+            if (IsBroadcasting)
             {
                 var stream = _api.V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
                 if (stream.Stream != null)
-                    NotififyOnline(stream.Stream);
+                    NotifyOnline(stream.Stream);
             }
+            else
+                needNotify = false;
         }
 
-        private void NotififyOnline(TwitchStream stream)
+        private void NotifyOnline(TwitchStream stream)
         {
+            needNotify = false;
             if (Channel.TelegramNotifyChannels.Count == 0)
                 return;
 
             var message = $"{stream.Channel.Status}\r\n{stream.Game}\r\nhttps://www.twitch.tv/{Channel.Name}";
 
+            var priorityDimensions = new List<ValueTuple<int,int>>
+            {
+                // (1920,1080), // telegram compresses pictures this size too much, no reason to use this dimension
+                (1600,900),
+                (1366,768),
+                (1280,720),
+                (1152,648),
+                (1024,576),
+            };
+
+            string pictureUrl = null;
+            foreach (var dimension in priorityDimensions)
+            {
+                var checkUrl = stream.Preview.Template.Replace("{width}", dimension.Item1.ToString())
+                    .Replace("{height}", dimension.Item2.ToString());
+
+                var request = WebRequest.CreateHttp(checkUrl);
+
+                request.AllowAutoRedirect = false;
+                var response = request.GetResponse() as HttpWebResponse;
+                if (response.StatusCode == HttpStatusCode.Redirect)
+                {
+                    response.Close();
+                    continue;
+                }
+
+                pictureUrl = checkUrl;
+                response.Close();
+                break;
+            }
+
+            if (string.IsNullOrEmpty(pictureUrl))
+            {
+                needNotify = true;
+                Logger.Instance.Warn("Channel previews load failed, postponing online notification");
+            }
+
             using (var client = new WebClient())
             {
-                using (var file = client.OpenRead(stream.Preview.Large))
+                using (var file = client.OpenRead(pictureUrl))
                 {
                     foreach (var notifyChannel in Channel.TelegramNotifyChannels)
                     {
@@ -118,7 +162,10 @@ namespace WTFTwitch.Bot
         private void UpdateChannelUserStats()
         {
             if (!IsBroadcasting)
+            {
+                _statisticManager.SyncChatters(new List<string>());
                 return;
+            }
 
             var chatters = _api.Undocumented.GetChattersAsync(Channel.Name).Result;
             if (chatters.Count == 0)

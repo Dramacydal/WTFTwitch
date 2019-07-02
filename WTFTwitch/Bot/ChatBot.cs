@@ -182,9 +182,9 @@ namespace WTFTwitch.Bot
 
             try
             {
-                using (var command = new MySqlCommand("SELECT bwc.channel_id, btn.telegram_channel_id, bwc.install_date FROM bot_watched_channels bwc " +
+                using (var command = new MySqlCommand("SELECT bwc.channel_id, btn.telegram_channel_id, bwc.commands_enabled != 0, bwc.install_date FROM bot_watched_channels bwc " +
                     "LEFT JOIN bot_telegram_notify btn ON bwc.channel_id = btn.channel_id AND bwc.bot_id = btn.bot_id " +
-                    "WHERE bwc.bot_id = @bot_id", DbConnection.GetConnection()))
+                    "WHERE bwc.bot_id = @bot_id AND bwc.enabled != 0", DbConnection.GetConnection()))
                 {
                     command.Parameters.AddWithValue("@bot_id", _settings.Id);
 
@@ -192,24 +192,26 @@ namespace WTFTwitch.Bot
                     {
                         while (reader.Read())
                         {
-                            var ChannelId = reader.GetString(0);
+                            var channelId = reader.GetString(0);
 
-                            WatchedChannel channel;
-                            if (watchedChannels.TryGetValue(ChannelId, out channel))
+                            if (watchedChannels.TryGetValue(channelId, out var channel))
                             {
                                 if (!reader.IsDBNull(1))
                                     channel.TelegramNotifyChannels.Add(reader.GetString(1));
                             }
                             else
                             {
-                                channel = new WatchedChannel();
-                                channel.BotId = _settings.Id;
-                                channel.Id = ChannelId;
-                                channel.InstallDate = reader.GetInt32(2);
+                                channel = new WatchedChannel
+                                {
+                                    BotId = _settings.Id,
+                                    Id = channelId,
+                                    CommandsEnabled = reader.GetBoolean(2),
+                                    InstallDate = reader.GetInt32(3),
+                                };
                                 if (!reader.IsDBNull(1))
                                     channel.TelegramNotifyChannels.Add(reader.GetString(1));
 
-                                watchedChannels[ChannelId] = channel;
+                                watchedChannels[channelId] = channel;
                             }
                         }
                     }

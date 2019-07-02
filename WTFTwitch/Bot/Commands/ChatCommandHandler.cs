@@ -39,6 +39,9 @@ namespace WTFTwitch.Bot.Commands
 
         public void Handle(ChatCommand command)
         {
+            if (!_channel.CommandsEnabled && command.ChatMessage.Username.ToLower() != "zakamurite")
+                return;
+
             switch (command.CommandText.ToLower())
             {
                 case "stats":

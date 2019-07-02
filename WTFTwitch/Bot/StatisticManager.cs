@@ -34,12 +34,14 @@ namespace WTFTwitch.Bot
 
         public void Update(string userId, bool left)
         {
+            if (left && !_updateStorage.HasKey(userId))
+                return;
+
             var updateData = _updateStorage.GetOrAdd(userId, new UserUpdateData(userId));
+            updateData.UpdateLastSeen(DateTime.UtcNow);
 
             if (left)
             {
-                updateData.UpdateLastSeen();
-
                 _updateStorage.Remove(userId);
                 _removedUpdateQueue.Enqueue(updateData);
             }
@@ -57,18 +59,22 @@ namespace WTFTwitch.Bot
                         if (updateData == null)
                             break;
 
-                        var diff = updateData.TimeFromLastSeen();
-                        UpdateUserChannelStats(updateData.UserId, updateData.LastSeen, (int)diff.TotalSeconds, false);
+                        var diff = updateData.LifeTime();
+                        if (diff.TotalSeconds > 0)
+                            UpdateUserChannelStats(updateData.UserId, updateData.LastSeen, (int)diff.TotalSeconds, false);
                     }
 
                     foreach (var updateData in _updateStorage)
                     {
-                        var diff = updateData.Value.TimeFromLastSeen();
+                        var diff = updateData.Value.LifeTime();
                         if (diff.TotalSeconds <= 0)
+                        {
+                            _removedUpdateQueue.Enqueue(updateData.Value);
                             continue;
+                        }
 
                         UpdateUserChannelStats(updateData.Value.UserId, updateData.Value.LastSeen, (int)diff.TotalSeconds, true);
-                        updateData.Value.UpdateLastSeen();
+                        updateData.Value.UpdateLastUpdate();
                     }
                 }
                 catch(Exception e)
