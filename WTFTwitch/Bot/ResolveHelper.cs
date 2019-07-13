@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Drawing.Design;
-using System.IO.IsolatedStorage;
 using System.Linq;
 using System.Text.RegularExpressions;
-using NLog.Targets.Wrappers;
+using MySql.Data.MySqlClient;
 using TwitchLib.Api;
-using TwitchLib.Api.Core.Extensions.System;
 using WTFShared;
+using WTFShared.Database;
 using WTFShared.Logging;
 
 namespace WTFTwitch.Bot
@@ -34,25 +32,75 @@ namespace WTFTwitch.Bot
 
     class ResolveHelper
     {
-        private TwitchAPI _api { get; }
+        private static bool _storageInitialized = false;
+        private static readonly ConcurrentDictionary<string, UserInfo> UsersById = new ConcurrentDictionary<string, UserInfo>();
+        private static readonly ConcurrentDictionary<string, List<UserInfo>> UsersByName = new ConcurrentDictionary<string, List<UserInfo>>();
+        private static readonly List<string> BotUsers = new List<string>();
 
-        private static ConcurrentDictionary<string, UserInfo> _usersById = new ConcurrentDictionary<string, UserInfo>();
-        private static ConcurrentDictionary<string, List<UserInfo>> _usersByName = new ConcurrentDictionary<string, List<UserInfo>>();
-
-        public ResolveHelper(TwitchAPI api)
+        public ResolveHelper()
         {
-            this._api = api;
+            if (!_storageInitialized)
+            {
+                try
+                {
+                    LoadFromStorage();
+                }
+                catch (Exception e)
+                {
+                    Logger.Instance.Error($"Failed to initialize Resolver database: {e.Info()}");
+                    _storageInitialized = false;
+                }
+            }
+        }
+
+        private static void LoadFromStorage()
+        {
+            UsersByName.Clear();
+            UsersById.Clear();
+            using (var query = new MySqlCommand("SELECT id, name, display_name FROM user_info",
+                DbConnection.GetConnection()))
+            {
+                using (var reader = query.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var info = new UserInfo(
+                            reader.GetString(0),
+                            reader.GetString(1),
+                            reader.GetString(2)
+                        );
+
+                        UsersById[info.Id] = info;
+                        UsersByName.GetOrAdd(info.Name).Add(info);
+                    }
+                }
+            }
+
+            BotUsers.Clear();
+            using (var query = new MySqlCommand("SELECT user_id FROM user_ignore_stats",
+                DbConnection.GetConnection()))
+            {
+                using (var reader = query.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        BotUsers.Add(reader.GetString(0));
+                    }
+                }
+            }
+
+            _storageInitialized = true;
         }
 
         public UserInfo GetUserById(string userId)
         {
-            var userName = _usersById.Get(userId);
+            var userName = UsersById.Get(userId);
             if (userName != null)
                 return userName;
 
             try
             {
-                var user = _api.V5.Users.GetUserByIDAsync(userId).Result;
+                var user = ApiPool.GetApi().V5.Users.GetUserByIDAsync(userId).Result;
                 if (user == null)
                     return null;
 
@@ -70,12 +118,33 @@ namespace WTFTwitch.Bot
 
         private void Store(UserInfo info)
         {
-            _usersById[info.Id] = info;
-            if (!_usersByName.ContainsKey(info.Name.ToLower()))
-                _usersByName[info.Name.ToLower()] = new List<UserInfo>();
+            UsersById[info.Id] = info;
+            if (!UsersByName.ContainsKey(info.Name.ToLower()))
+                UsersByName[info.Name.ToLower()] = new List<UserInfo>();
 
-            if (!_usersByName[info.Name.ToLower()].Any(_ => _.Id == info.Id))
-                _usersByName[info.Name.ToLower()].Add(info);
+            // ReSharper disable once SimplifyLinqExpression
+            if (!UsersByName[info.Name.ToLower()].Any(_ => _.Id == info.Id))
+                UsersByName[info.Name.ToLower()].Add(info);
+
+            try
+            {
+                using (var query =
+                    new MySqlCommand(
+                        "INSERT IGNORE INTO user_info (id, name, display_name) VALUE (@id, @name, @display_name)",
+                        DbConnection.GetConnection()))
+                {
+                    query.Parameters.AddWithValue("@id", info.Id);
+                    query.Parameters.AddWithValue("@name", info.Name);
+                    query.Parameters.AddWithValue("@display_name", info.DisplayName);
+
+                    query.ExecuteNonQuery();
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.Error($"Failed to save to database resolved user {info.ToString()}: {e.Info()}");
+
+            }
         }
 
         public List<UserInfo> GetUsersByName(string userName)
@@ -99,7 +168,7 @@ namespace WTFTwitch.Bot
 
         public Dictionary<string, List<UserInfo>> GetUsersByNames(List<string> userNames)
         {
-            var cached = _usersByName.Where(_ =>
+            var cached = UsersByName.Where(_ =>
                 _.Value.Any(_2 => userNames.Any(_3 => _3.ToLower() == _2.Name.ToLower())));
 
             var uncached =
@@ -114,7 +183,7 @@ namespace WTFTwitch.Bot
                 List<UserInfo> requested = new List<UserInfo>();
                 try
                 {
-                    var apiResult = _api.V5.Users.GetUsersByNameAsync(uncached.ToList());
+                    var apiResult = ApiPool.GetApi().V5.Users.GetUsersByNameAsync(uncached.ToList());
                     if (apiResult.Result.Total > 0)
                         requested.AddRange(apiResult.Result.Matches.Select(_ => new UserInfo(_.Id, _.Name, _.DisplayName)));
                 }
@@ -144,6 +213,36 @@ namespace WTFTwitch.Bot
             }
 
             return result;
+        }
+
+        public static bool IsIgnoredUser(string userId)
+        {
+            return BotUsers.Contains(userId);
+        }
+
+        public static void RemoveIgnoreUserStat(UserInfo info)
+        {
+            BotUsers.Remove(info.Id);
+
+            using (var query = new MySqlCommand("DELETE FROM user_ignore_stats WHERE user_id = @user_id", DbConnection.GetConnection()))
+            {
+                query.Parameters.AddWithValue("@user_id", info.Id);
+
+                query.ExecuteNonQuery();
+            }
+        }
+
+        public static void AddIgnoreUserStat(UserInfo info)
+        {
+            if (!BotUsers.Contains(info.Id))
+                BotUsers.Add(info.Id);
+
+            using (var query = new MySqlCommand("REPLACE INTO user_ignore_stats (user_id) VALUE (@user_id)", DbConnection.GetConnection()))
+            {
+                query.Parameters.AddWithValue("@user_id", info.Id);
+
+                query.ExecuteNonQuery();
+            }
         }
     }
 }

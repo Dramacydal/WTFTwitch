@@ -34,7 +34,7 @@ namespace WTFTwitch.Bot
 
         public void Update(string userId, bool left)
         {
-            if (left && !_updateStorage.HasKey(userId))
+            if (left && !_updateStorage.ContainsKey(userId))
                 return;
 
             var updateData = _updateStorage.GetOrAdd(userId, new UserUpdateData(userId));
@@ -53,7 +53,7 @@ namespace WTFTwitch.Bot
             {
                 try
                 {
-                    for (; ; )
+                    for (;;)
                     {
                         var updateData = _removedUpdateQueue.Dequeue();
                         if (updateData == null)
@@ -61,7 +61,10 @@ namespace WTFTwitch.Bot
 
                         var diff = updateData.LifeTime();
                         if (diff.TotalSeconds > 0)
-                            UpdateUserChannelStats(updateData.UserId, updateData.LastSeen, (int)diff.TotalSeconds, false);
+                        {
+                            if (!UpdateUserChannelStats(updateData.UserId, updateData.LastSeen, (int) diff.TotalSeconds, false))
+                                _removedUpdateQueue.Enqueue(updateData);
+                        }
                     }
 
                     foreach (var updateData in _updateStorage)
@@ -73,8 +76,8 @@ namespace WTFTwitch.Bot
                             continue;
                         }
 
-                        UpdateUserChannelStats(updateData.Value.UserId, updateData.Value.LastSeen, (int)diff.TotalSeconds, true);
-                        updateData.Value.UpdateLastUpdate();
+                        if (UpdateUserChannelStats(updateData.Value.UserId, updateData.Value.LastSeen, (int)diff.TotalSeconds, true))
+                            updateData.Value.UpdateLastUpdate();
                     }
                 }
                 catch(Exception e)
@@ -86,7 +89,7 @@ namespace WTFTwitch.Bot
             }
         }
 
-        private void UpdateUserChannelStats(string userId, DateTime lastSeen, int timeDiff, bool isOnline)
+        private bool UpdateUserChannelStats(string userId, DateTime lastSeen, int timeDiff, bool isOnline)
         {
             try
             {
@@ -103,11 +106,14 @@ namespace WTFTwitch.Bot
                     command.Parameters.AddWithValue("@is_online", isOnline ? 1 : 0);
 
                     command.ExecuteNonQuery();
+
+                    return true;
                 }
             }
             catch (Exception e)
             {
                 Logger.Instance.Error($"Error: {e.Info()}");
+                return false;
             }
         }
 

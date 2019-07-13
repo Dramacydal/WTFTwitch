@@ -149,6 +149,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Bot\ApiPool.cs" />
     <Compile Include="Bot\BotManager.cs" />
     <Compile Include="Bot\BotSettings.cs" />
     <Compile Include="Bot\CacheHelper.cs" />
@@ -160,7 +161,6 @@
     <Compile Include="Bot\ResolveHelper.cs" />
     <Compile Include="Bot\UserUpdateData.cs" />
     <Compile Include="Bot\WatchedChannel.cs" />
-    <Compile Include="Extensions.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Bot\StatisticManager.cs" />

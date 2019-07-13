@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MySql.Data.MySqlClient;
+using WTFShared.Database;
 
 namespace WTFShared
 {
@@ -11,7 +13,19 @@ namespace WTFShared
     {
         public static V Get<T, V>(this ConcurrentDictionary<T, V> dict, T key)
         {
-            return dict.TryGetValue(key, out var value) ? value : default(V);
+            var value = default(V);
+
+            while (dict.ContainsKey(key)  && !dict.TryGetValue(key, out value))
+                continue;
+
+            return value;
+        }
+
+        public static V GetOrAdd<T, V>(this ConcurrentDictionary<T, V> dict, T key) where V : new()
+        {
+            var res = dict.GetOrAdd(key, new V());
+
+            return res;
         }
 
         public static bool HasKey<T, V>(this ConcurrentDictionary<T, V> dict, T key)
@@ -23,7 +37,7 @@ namespace WTFShared
         {
             var value = default(V);
 
-            while (dict.HasKey(key) && !dict.TryRemove(key, out value))
+            while (dict.ContainsKey(key) && !dict.TryRemove(key, out value))
                 continue;
 
             return value;
@@ -73,6 +87,20 @@ namespace WTFShared
             var message = string.Join(" ", parts);
 
             return message + e.StackTrace;
+        }
+
+        public static ResultRows ReadAll(this MySqlDataReader reader)
+        {
+            var res = new ResultRows();
+
+            while (reader.Read())
+            {
+                var values = new object[reader.FieldCount];
+                reader.GetValues(values);
+                res.Add(values);
+            }
+
+            return res;
         }
     }
 }

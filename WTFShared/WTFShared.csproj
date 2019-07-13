@@ -58,6 +58,7 @@
     <Compile Include="Configuration\SectionAttribute.cs" />
     <Compile Include="Database\DbConfig.cs" />
     <Compile Include="Database\DbConnection.cs" />
+    <Compile Include="Database\ResultRows.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="Logging\Logger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

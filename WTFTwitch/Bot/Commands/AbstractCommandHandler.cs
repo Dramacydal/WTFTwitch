@@ -14,14 +14,13 @@ namespace WTFTwitch.Bot.Commands
         protected ResolveHelper _resolveHelper;
 
         protected BotSettings _settings;
-        protected TwitchAPI _api => _settings.Api;
         protected TwitchClient _client => _settings.Client;
 
         public AbstractCommandHandler(BotSettings settings)
         {
             this._settings = settings;
 
-            this._resolveHelper = new ResolveHelper(_api);
+            this._resolveHelper = new ResolveHelper();
         }
     }
 }

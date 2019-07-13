@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading;
@@ -7,12 +10,12 @@ using System.Threading.Tasks;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.InputFiles;
 using TwitchLib.Api;
-using TwitchLib.Api.V5.Models.Streams;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using WTFShared;
 using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
+using Stream = TwitchLib.Api.V5.Models.Streams.Stream;
 
 namespace WTFTwitch.Bot
 {
@@ -23,17 +26,16 @@ namespace WTFTwitch.Bot
         public WatchedChannel Channel { get; }
 
         public BotSettings Settings { get; }
-        private TwitchClient _client => Settings.Client;
-        private TwitchAPI _api => Settings.Api;
+        private TwitchClient Client => Settings.Client;
 
-        private StatisticManager _statisticManager;
-        private ChatCommandHandler _chatCommandHandler;
+        private readonly StatisticManager _statisticManager;
+        private readonly ChatCommandHandler _chatCommandHandler;
 
-        private ResolveHelper _resolveHelper;
+        private readonly ResolveHelper _resolveHelper;
 
-        private CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
+        private readonly CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
 
-        private Task _updateTask;
+        private readonly Task _updateTask;
         private bool needNotify = false;
 
         public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
@@ -46,7 +48,7 @@ namespace WTFTwitch.Bot
             this.Settings = settings;
 
             this._statisticManager = new StatisticManager(channel);
-            this._resolveHelper = new ResolveHelper(settings.Api);
+            this._resolveHelper = new ResolveHelper();
 
             this._chatCommandHandler = new ChatCommandHandler(channel, this);
 
@@ -81,7 +83,7 @@ namespace WTFTwitch.Bot
 
         private bool CheckIsBroadcasting()
         {
-            return _api.V5.Streams.BroadcasterOnlineAsync(Channel.Id).Result;
+            return ApiPool.GetApi().V5.Streams.BroadcasterOnlineAsync(Channel.Id).Result;
         }
 
         private void UpdateChannel()
@@ -89,12 +91,9 @@ namespace WTFTwitch.Bot
             var oldOnline = IsBroadcasting;
             IsBroadcasting = CheckIsBroadcasting();
 
-            if (!needNotify)
-                needNotify = IsBroadcasting && oldOnline != IsBroadcasting;
-
-            if (IsBroadcasting)
+            if (needNotify || IsBroadcasting && oldOnline != IsBroadcasting)
             {
-                var stream = _api.V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
+                var stream = ApiPool.GetApi().V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
                 if (stream.Stream != null)
                     NotifyOnline(stream.Stream);
             }
@@ -112,7 +111,7 @@ namespace WTFTwitch.Bot
 
             var priorityDimensions = new List<ValueTuple<int,int>>
             {
-                // (1920,1080), // telegram compresses pictures this size too much, no reason to use this dimension
+                (1920,1080), // telegram compresses pictures this size too much, no reason to use this dimension
                 (1600,900),
                 (1366,768),
                 (1280,720),
@@ -120,43 +119,63 @@ namespace WTFTwitch.Bot
                 (1024,576),
             };
 
-            string pictureUrl = null;
-            foreach (var dimension in priorityDimensions)
+            var found = false;
+            using (var memoryStream = new MemoryStream())
             {
-                var checkUrl = stream.Preview.Template.Replace("{width}", dimension.Item1.ToString())
-                    .Replace("{height}", dimension.Item2.ToString());
-
-                var request = WebRequest.CreateHttp(checkUrl);
-
-                request.AllowAutoRedirect = false;
-                var response = request.GetResponse() as HttpWebResponse;
-                if (response.StatusCode == HttpStatusCode.Redirect)
+                foreach (var (width, height) in priorityDimensions)
                 {
-                    response.Close();
-                    continue;
-                }
+                    var checkUrl = stream.Preview.Template.Replace("{width}", width.ToString())
+                        .Replace("{height}", height.ToString());
 
-                pictureUrl = checkUrl;
-                response.Close();
-                break;
+                    var request = WebRequest.CreateHttp(checkUrl);
+
+                    request.AllowAutoRedirect = false;
+                    var response = request.GetResponse() as HttpWebResponse;
+                    if (response?.StatusCode == HttpStatusCode.Redirect)
+                    {
+                        response.Close();
+                        continue;
+                    }
+
+                    response.GetResponseStream().CopyTo(memoryStream);
+
+                    response?.Close();
+
+                    Logger.Instance.Debug($"Found {width}x{height} preview for channel {Channel.Name}");
+
+                    foreach (var notifyChannel in Channel.TelegramNotifyChannels)
+                    {
+                        using (var memoryStream2 = new MemoryStream())
+                        {
+                            var outImage = ResizeImage(memoryStream, width, height);
+                            outImage.Save(memoryStream2, ImageFormat.Jpeg);
+                            memoryStream2.Position = 0;
+
+                            var res = Settings.Telegram?.SendPhotoAsync(new ChatId(notifyChannel),
+                                new InputOnlineFile(memoryStream2), message).Result;
+                        }
+                    }
+                    found = true;
+
+                    break;
+                }
             }
 
-            if (string.IsNullOrEmpty(pictureUrl))
+            if (!found)
             {
                 needNotify = true;
                 Logger.Instance.Warn("Channel previews load failed, postponing online notification");
             }
+        }
 
-            using (var client = new WebClient())
-            {
-                using (var file = client.OpenRead(pictureUrl))
-                {
-                    foreach (var notifyChannel in Channel.TelegramNotifyChannels)
-                    {
-                        var res = Settings.Telegram?.SendPhotoAsync(new ChatId(notifyChannel), new InputOnlineFile(file), message).Result;
-                    }
-                }
-            }
+        private Image ResizeImage(MemoryStream stream, int width, int height)
+        {
+            var image = Image.FromStream(stream);
+            if (width <= 1600)
+                return image;
+
+            //return new Bitmap(image, new Size(1600, 900));
+            return image.GetThumbnailImage(1600, 900, null, IntPtr.Zero);
         }
 
         private void UpdateChannelUserStats()
@@ -167,7 +186,7 @@ namespace WTFTwitch.Bot
                 return;
             }
 
-            var chatters = _api.Undocumented.GetChattersAsync(Channel.Name).Result;
+            var chatters = ApiPool.GetApi().Undocumented.GetChattersAsync(Channel.Name).Result;
             if (chatters.Count == 0)
                 return;
 
@@ -203,10 +222,32 @@ namespace WTFTwitch.Bot
             _chatCommandHandler.Handle(e.Command);
         }
 
+        public void OnUserJoined(object sender, OnUserJoinedArgs e)
+        {
+            var userInfos = _resolveHelper.GetUsersByName(e.Username);
+            if (userInfos.Count == 0)
+            {
+                Logger.Instance.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.Name}");
+                return;
+            }
+            else if (userInfos.Count > 1)
+            {
+                Logger.Instance.Warn($"Joined user {e.Username} for channel {Channel.Name} resolves in more than 1 entities: " +
+                                     string.Join(", ", userInfos.Select(_ => _.ToString())));
+                return;
+            }
+
+            var info = userInfos.FirstOrDefault(_ => !ResolveHelper.IsIgnoredUser(_.Id));
+            if (info == default(UserInfo))
+                return;
+
+            Logger.Instance.Info($"User [{e.Username}] joined channel [{Channel.Name}]");
+
+            _statisticManager.Update(info.Id, false);
+        }
+
         public void OnUserLeft(object sender, OnUserLeftArgs e)
         {
-            Logger.Instance.Info($"User left: {e.Username} channel: {Channel.Name}");
-
             var userInfos = _resolveHelper.GetUsersByName(e.Username);
             if (userInfos.Count == 0)
             {
@@ -220,27 +261,13 @@ namespace WTFTwitch.Bot
                 return;
             }
 
-            _statisticManager.Update(userInfos[0].Id, true);
-        }
-
-        public void OnUserJoined(object sender, OnUserJoinedArgs e)
-        {
-            Logger.Instance.Info($"User joined {e.Username} channel: {Channel.Name}");
-
-            var userInfos = _resolveHelper.GetUsersByName(e.Username);
-            if (userInfos.Count == 0)
-            {
-                Logger.Instance.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.Name}");
+            var info = userInfos.FirstOrDefault(_ => !ResolveHelper.IsIgnoredUser(_.Id));
+            if (info == default(UserInfo))
                 return;
-            }
-            else if (userInfos.Count > 1)
-            {
-                Logger.Instance.Warn($"Joined user {e.Username} for channel {Channel.Name} resolves in more than 1 entities: " +
-                    string.Join(", ", userInfos.Select(_ => _.ToString())));
-                return;
-            }
 
-            _statisticManager.Update(userInfos[0].Id, false);
+            Logger.Instance.Info($"User [{e.Username}] left  channel [{Channel.Name}]");
+
+            _statisticManager.Update(info.Id, true);
         }
 
         public void OnJoinedChannel(object sender)

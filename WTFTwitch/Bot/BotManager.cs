@@ -13,7 +13,7 @@ namespace WTFTwitch.Bot
 {
     class BotManager
     {
-        List<ChatBot> _bots = new List<ChatBot>();
+        private readonly List<ChatBot> _bots = new List<ChatBot>();
 
         public BotManager()
         {
@@ -50,7 +50,7 @@ namespace WTFTwitch.Bot
 
             try
             {
-                using (var command = new MySqlCommand("SELECT id, bot_name, client_id, access_token, telegram_token FROM bots", DbConnection.GetConnection()))
+                using (var command = new MySqlCommand("SELECT id, bot_name, access_token, telegram_token FROM bots", DbConnection.GetConnection()))
                 {
                     using (var reader = command.ExecuteReader())
                     {
@@ -60,9 +60,8 @@ namespace WTFTwitch.Bot
                             {
                                 Id = reader.GetInt32(0),
                                 Name = reader.GetString(1),
-                                CliendId = reader.GetString(2),
-                                AccessToken = reader.GetString(3),
-                                TelegramToken = !reader.IsDBNull(4) ? reader.GetString(4) : null
+                                AccessToken = reader.GetString(2),
+                                TelegramToken = !reader.IsDBNull(3) ? reader.GetString(3) : null
                             });
                         }
                     }

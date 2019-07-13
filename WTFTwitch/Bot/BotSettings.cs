@@ -12,12 +12,10 @@ namespace WTFTwitch.Bot
     {
         public int Id;
         public string Name;
-        public string CliendId;
         public string AccessToken;
         public string TelegramToken;
 
         public ChatBot Bot;
-        public TwitchAPI Api => Bot?.Api;
         public TwitchClient Client => Bot?.Client;
         public TelegramBotClient Telegram => Bot?.Telegram;
     }

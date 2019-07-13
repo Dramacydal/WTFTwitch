@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
-using TwitchLib.Api;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using TwitchLib.Client.Models;
@@ -21,17 +20,16 @@ namespace WTFTwitch.Bot
 {
     class ChatBot
     {
-        public TwitchAPI Api { get; private set; }
         public TwitchClient Client { get; private set; }
 
         public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
 
-        private BotSettings _settings;
+        private readonly BotSettings _settings;
 
         private List<WatchedChannel> _watchedChannels = new List<WatchedChannel>();
-        private Dictionary<string, ChannelProcessor> _channelProcessors = new Dictionary<string, ChannelProcessor>();
+        private readonly Dictionary<string, ChannelProcessor> _channelProcessors = new Dictionary<string, ChannelProcessor>();
 
-        private WhisperCommandHandler _whisperCommandHandler;
+        private readonly WhisperCommandHandler _whisperCommandHandler;
 
         public TelegramBotClient Telegram { get; private set; }
 
@@ -39,7 +37,7 @@ namespace WTFTwitch.Bot
 
         private bool _isStopping = false;
 
-        private CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
+        private readonly CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
 
         private Task _updateTask;
 
@@ -48,18 +46,10 @@ namespace WTFTwitch.Bot
             this._settings = settings;
             settings.Bot = this;
 
-            InitializeAPI();
             InitializeClient();
             InitializeTelegram();
 
             _whisperCommandHandler = new WhisperCommandHandler(_settings);
-        }
-
-        private void InitializeAPI()
-        {
-            Api = new TwitchAPI();
-            Api.Settings.ClientId = _settings.CliendId;
-            Api.Settings.AccessToken = _settings.AccessToken;
         }
 
         private void InitializeClient()
@@ -229,7 +219,7 @@ namespace WTFTwitch.Bot
             {
                 try
                 {
-                    var res = Api.V5.Channels.GetChannelByIDAsync(channel.Id).Result;
+                    var res = ApiPool.GetApi().V5.Channels.GetChannelByIDAsync(channel.Id).Result;
                     if (res == null)
                     {
                         Logger.Instance.Warn($"Failed to resolve channel with id '{channel.Id}");
