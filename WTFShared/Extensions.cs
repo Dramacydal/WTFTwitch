@@ -1,10 +1,7 @@
-﻿using System;
+﻿using MySql.Data.MySqlClient;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MySql.Data.MySqlClient;
 using WTFShared.Database;
 
 namespace WTFShared
@@ -77,7 +74,7 @@ namespace WTFShared
         {
             var ex = e;
 
-            List<string> parts = new List<string>();
+            var parts = new List<string>();
             do
             {
                 parts.Add(ex.Message);

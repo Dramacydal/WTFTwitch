@@ -2,11 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using TwitchLib.Api;
-using TwitchLib.Client;
 using TwitchLib.Client.Models;
 using WTFShared;
 using WTFShared.Database;
@@ -136,7 +131,8 @@ namespace WTFTwitch.Bot.Commands
                     });
 
                     var counter = 0;
-                    var lines = userStats.OrderByDescending(_ => _.WatchTime).Select(_ => string.Format("{0}. {1} ({2})", ++counter, _.Info.DisplayName, TimeSpan.FromSeconds(_.WatchTime).AsPrettyReadable()));
+                    var lines = userStats.OrderByDescending(_ => _.WatchTime).Select(_ =>
+                        $"{++counter}. {_.Info.DisplayName} ({TimeSpan.FromSeconds(_.WatchTime).AsPrettyReadable()})");
                     stats = string.Join("\r\n", lines);
                     CacheHelper.Save(cacheKey, stats);
                 }

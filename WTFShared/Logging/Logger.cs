@@ -1,18 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NLog;
+﻿using NLog;
 using NLog.Conditions;
 using NLog.Targets;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace WTFShared.Logging
 {
     public static class Logger
     {
-        private static NLog.Logger _logInstance = null;
-
         private const string DefaultLayout = @"[${date:format=yyyy-MM-dd HH\:mm\:ss}][${level:uppercase=true}] ${message}";
 
         private static readonly Dictionary<LogLevel, ConsoleOutputColor> ColoringRules = new Dictionary<LogLevel, ConsoleOutputColor>()
@@ -25,17 +20,15 @@ namespace WTFShared.Logging
             [LogLevel.Fatal] = ConsoleOutputColor.Red,
         };
 
-        public static NLog.Logger Instance => _logInstance;
+        public static NLog.Logger Instance { get; } = null;
 
         static Logger()
         {
             var config = new NLog.Config.LoggingConfiguration();
 
-            var fileLog = new FileTarget("logfile") { FileName = "WTFTwitch.log" };
-            fileLog.Layout = DefaultLayout;
+            var fileLog = new FileTarget("logfile") {FileName = "WTFTwitch.log", Layout = DefaultLayout};
 
-            var consoleLog = new ColoredConsoleTarget("consolelog");
-            consoleLog.Layout = DefaultLayout;
+            var consoleLog = new ColoredConsoleTarget("consolelog") {Layout = DefaultLayout};
             foreach (var rule in GetColorRules())
                 consoleLog.RowHighlightingRules.Add(rule);
 
@@ -44,17 +37,18 @@ namespace WTFShared.Logging
 
             NLog.LogManager.Configuration = config;
 
-            _logInstance = NLog.LogManager.GetCurrentClassLogger();
+            Instance = NLog.LogManager.GetCurrentClassLogger();
         }
 
         private static IEnumerable<ConsoleRowHighlightingRule> GetColorRules()
         {
             return ColoringRules.Select(_ =>
             {
-                var highlightRule = new ConsoleRowHighlightingRule();
-
-                highlightRule.Condition = ConditionParser.ParseExpression(string.Format("level == LogLevel.{0}", _.Key.ToString()));
-                highlightRule.ForegroundColor = _.Value;
+                var highlightRule = new ConsoleRowHighlightingRule
+                {
+                    Condition = ConditionParser.ParseExpression($"level == LogLevel.{_.Key.ToString()}"),
+                    ForegroundColor = _.Value
+                };
 
                 return highlightRule;
             });

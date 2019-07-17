@@ -1,10 +1,6 @@
 ﻿using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
@@ -44,7 +40,7 @@ namespace WTFTwitch.Bot
                 bot.Stop();
         }
 
-        private List<BotSettings> LoadBotSettings()
+        private static IEnumerable<BotSettings> LoadBotSettings()
         {
             List<BotSettings> botSettings = new List<BotSettings>();
 

@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Threading;
-using WTFShared;
 using WTFShared.Logging;
 
-namespace WTFTwitch.Lib
+namespace WTFShared
 {
     class WTFTimer
     {
@@ -21,10 +20,7 @@ namespace WTFTwitch.Lib
 
         public TimeSpan Period
         {
-            get
-            {
-                return _period;
-            }
+            get => _period;
             set
             {
                 _period = value;

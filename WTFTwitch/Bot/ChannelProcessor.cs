@@ -9,17 +9,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.InputFiles;
-using TwitchLib.Api;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using WTFShared;
 using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
-using Stream = TwitchLib.Api.V5.Models.Streams.Stream;
 
 namespace WTFTwitch.Bot
 {
-    using TwitchStream = Stream;
+    using TwitchStream = TwitchLib.Api.V5.Models.Streams.Stream;
 
     class ChannelProcessor
     {
@@ -36,7 +34,7 @@ namespace WTFTwitch.Bot
         private readonly CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
 
         private readonly Task _updateTask;
-        private bool needNotify = false;
+        private bool _needNotify = false;
 
         public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
 
@@ -91,19 +89,19 @@ namespace WTFTwitch.Bot
             var oldOnline = IsBroadcasting;
             IsBroadcasting = CheckIsBroadcasting();
 
-            if (needNotify || IsBroadcasting && oldOnline != IsBroadcasting)
+            if (_needNotify || IsBroadcasting && oldOnline != IsBroadcasting)
             {
                 var stream = ApiPool.GetApi().V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
                 if (stream.Stream != null)
                     NotifyOnline(stream.Stream);
             }
             else
-                needNotify = false;
+                _needNotify = false;
         }
 
         private void NotifyOnline(TwitchStream stream)
         {
-            needNotify = false;
+            _needNotify = false;
             if (Channel.TelegramNotifyChannels.Count == 0)
                 return;
 
@@ -163,7 +161,7 @@ namespace WTFTwitch.Bot
 
             if (!found)
             {
-                needNotify = true;
+                _needNotify = true;
                 Logger.Instance.Warn("Channel previews load failed, postponing online notification");
             }
         }
@@ -265,7 +263,7 @@ namespace WTFTwitch.Bot
             if (info == default(UserInfo))
                 return;
 
-            Logger.Instance.Info($"User [{e.Username}] left  channel [{Channel.Name}]");
+            Logger.Instance.Info($"User [{e.Username}] left channel [{Channel.Name}]");
 
             _statisticManager.Update(info.Id, true);
         }
@@ -297,10 +295,13 @@ namespace WTFTwitch.Bot
             _updateThreadTokenSource.Cancel();
 
             if (!async)
-            {
-                while (!IsStopped)
-                    Thread.Sleep(50);
-            }
+                WaitUntilStopped();
+        }
+
+        private void WaitUntilStopped()
+        {
+            while (!IsStopped)
+                Thread.Sleep(50);
         }
     }
 }
