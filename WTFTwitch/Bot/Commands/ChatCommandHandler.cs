@@ -84,7 +84,7 @@ namespace WTFTwitch.Bot.Commands
 
             var nameOrId = command.ArgumentsAsList[0];
 
-            var res = _resolveHelper.Resolve(nameOrId);
+            var res = ResolveHelper.Resolve(nameOrId);
             if (res.Count == 0)
             {
                 SendMessage($"Failed to resolve user '{nameOrId}'");
@@ -126,7 +126,7 @@ namespace WTFTwitch.Bot.Commands
 
                     var userStats = data.Select(_ => new UserStat()
                     {
-                        Info = _resolveHelper.GetUserById(_[0] as string),
+                        Info = ResolveHelper.GetUserById(_[0] as string),
                         WatchTime = Convert.ToUInt32(_[1])
                     });
 
@@ -146,7 +146,7 @@ namespace WTFTwitch.Bot.Commands
                 var cacheKey = $"stats_{_channel.Id}_{userName}";
                 if (!CacheHelper.Load(cacheKey, out int time) || time == 0)
                 {
-                    var userInfos = _resolveHelper.Resolve(userName);
+                    var userInfos = ResolveHelper.Resolve(userName);
                     if (userInfos.Count == 0)
                     {
                         SendMessage($"User {userName} not found");
@@ -220,7 +220,7 @@ namespace WTFTwitch.Bot.Commands
             }
 
             var nameOrId = command.ArgumentsAsList[0];
-            var userInfos = _resolveHelper.Resolve(nameOrId);
+            var userInfos = ResolveHelper.Resolve(nameOrId);
             if (userInfos.Count == 0)
             {
                 SendMessage($"User {nameOrId} not found");
@@ -247,7 +247,7 @@ namespace WTFTwitch.Bot.Commands
 
         private void ListIgnoreStats()
         {
-            var data = new ResultRows();
+            ResultRows data;
             using (var query = new MySqlCommand("SELECT user_id FROM user_ignore_stats", DbConnection.GetConnection()))
             {
                 using (var reader = query.ExecuteReader())
@@ -257,7 +257,7 @@ namespace WTFTwitch.Bot.Commands
             var lines = data.Select(_ =>
             {
                 var userId = _[0] as string;
-                var userInfo = _resolveHelper.GetUserById(userId);
+                var userInfo = ResolveHelper.GetUserById(userId);
                 return userInfo != null ? userInfo.ToString() : $"'{userId}': <unknown>";
             });
 

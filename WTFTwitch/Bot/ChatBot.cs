@@ -138,7 +138,7 @@ namespace WTFTwitch.Bot
         private bool HasJoinedChannel(string channelName)
         {
             return Client.JoinedChannels.Any(
-                _ => _.Channel.ToLower() == channelName.ToLower());
+                _ => string.Equals(_.Channel, channelName, StringComparison.CurrentCultureIgnoreCase));
         }
 
         private ChannelProcessor GetChannelProcessor(string channelName)
@@ -198,6 +198,7 @@ namespace WTFTwitch.Bot
                                     CommandsEnabled = reader.GetBoolean(2),
                                     InstallDate = reader.GetInt32(3),
                                 };
+
                                 if (!reader.IsDBNull(1))
                                     channel.TelegramNotifyChannels.Add(reader.GetString(1));
 
@@ -291,7 +292,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Uncaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -303,7 +304,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Uncaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -315,7 +316,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Uncaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -327,7 +328,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Uncaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -367,7 +368,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Uncaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 
@@ -379,7 +380,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception ex)
             {
-                Logger.Instance.Error($"[{0}] Unchaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
+                Logger.Instance.Error($"[{0}] Uncaught exception: {ex.Info()}", MethodBase.GetCurrentMethod().Name);
             }
         }
 

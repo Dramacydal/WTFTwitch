@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using MySql.Data.MySqlClient;
-using TwitchLib.Api;
 using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
@@ -26,30 +25,27 @@ namespace WTFTwitch.Bot
 
         public override string ToString()
         {
-            return $"'{Id}': '{DisplayName}' ('{Name}')";
+            return $"'{DisplayName}' ('{Name}', {Id})";
         }
+
+        public static readonly UserInfo Empty = new UserInfo("<Unknown>", "<Unknown>", "<Unknown>");
     }
 
-    class ResolveHelper
+    static class ResolveHelper
     {
-        private static bool _storageInitialized = false;
         private static readonly ConcurrentDictionary<string, UserInfo> UsersById = new ConcurrentDictionary<string, UserInfo>();
         private static readonly ConcurrentDictionary<string, List<UserInfo>> UsersByName = new ConcurrentDictionary<string, List<UserInfo>>();
         private static readonly List<string> BotUsers = new List<string>();
 
-        public ResolveHelper()
+        static ResolveHelper()
         {
-            if (!_storageInitialized)
+            try
             {
-                try
-                {
-                    LoadFromStorage();
-                }
-                catch (Exception e)
-                {
-                    Logger.Instance.Error($"Failed to initialize Resolver database: {e.Info()}");
-                    _storageInitialized = false;
-                }
+                LoadFromStorage();
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.Error($"Failed to initialize Resolver database: {e.Info()}");
             }
         }
 
@@ -88,11 +84,9 @@ namespace WTFTwitch.Bot
                     }
                 }
             }
-
-            _storageInitialized = true;
         }
 
-        public UserInfo GetUserById(string userId)
+        public static UserInfo GetUserById(string userId)
         {
             var userName = UsersById.Get(userId);
             if (userName != null)
@@ -116,7 +110,7 @@ namespace WTFTwitch.Bot
             }
         }
 
-        private void Store(UserInfo info)
+        private static void Store(UserInfo info)
         {
             UsersById[info.Id] = info;
             if (!UsersByName.ContainsKey(info.Name.ToLower()))
@@ -147,26 +141,32 @@ namespace WTFTwitch.Bot
             }
         }
 
-        public List<UserInfo> GetUsersByName(string userName)
+        public static List<UserInfo> GetUsersByName(string userName)
         {
             var res = GetUsersByNames(new List<string>() {userName});
 
             return res[userName.ToLower()];
         }
 
-        public List<UserInfo> Resolve(string nameOrId)
+        public static List<UserInfo> Resolve(string nameOrId)
         {
+            List<UserInfo> result;
             if (Regex.IsMatch(nameOrId, @"^\d+$"))
             {
                 var user = GetUserById(nameOrId);
 
-                return user != null ? new List<UserInfo> {user} : new List<UserInfo>();
+                result = user != null ? new List<UserInfo> {user} : new List<UserInfo>();
             }
             else
-                return GetUsersByName(nameOrId);
+                result = GetUsersByName(nameOrId);
+
+            Logger.Instance.Debug($"Name or id [{nameOrId}] resolves in more than 1 entities: " +
+                string.Join(", ", result.Select(_ => _.ToString())));
+
+            return result;
         }
 
-        public Dictionary<string, List<UserInfo>> GetUsersByNames(List<string> userNames)
+        public static Dictionary<string, List<UserInfo>> GetUsersByNames(List<string> userNames)
         {
             var cached = UsersByName.Where(_ =>
                 _.Value.Any(_2 => userNames.Any(_3 => _3.ToLower() == _2.Name.ToLower())));
@@ -243,6 +243,15 @@ namespace WTFTwitch.Bot
 
                 query.ExecuteNonQuery();
             }
+        }
+
+        public static string GetInfo(string nameOrId)
+        {
+            var infos = Resolve(nameOrId);
+            if (infos.Count == 0)
+                return UserInfo.Empty.ToString();
+
+            return infos.First().ToString();
         }
     }
 }

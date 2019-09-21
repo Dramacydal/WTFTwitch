@@ -11,8 +11,6 @@ namespace WTFTwitch.Bot.Commands
 {
     abstract class AbstractCommandHandler
     {
-        protected ResolveHelper _resolveHelper { get; } = new ResolveHelper();
-
         protected BotSettings _settings;
         protected TwitchClient _client => _settings.Client;
 

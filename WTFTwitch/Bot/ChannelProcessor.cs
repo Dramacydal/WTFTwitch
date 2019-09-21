@@ -29,8 +29,6 @@ namespace WTFTwitch.Bot
         private readonly StatisticManager _statisticManager;
         private readonly ChatCommandHandler _chatCommandHandler;
 
-        private readonly ResolveHelper _resolveHelper;
-
         private readonly CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
 
         private readonly Task _updateTask;
@@ -46,7 +44,6 @@ namespace WTFTwitch.Bot
             this.Settings = settings;
 
             this._statisticManager = new StatisticManager(channel);
-            this._resolveHelper = new ResolveHelper();
 
             this._chatCommandHandler = new ChatCommandHandler(channel, this);
 
@@ -188,21 +185,8 @@ namespace WTFTwitch.Bot
             if (chatters.Count == 0)
                 return;
 
-            var c = _resolveHelper.GetUsersByNames(chatters.Select(_ => _.Username).ToList());
-            foreach (var chatter in c)
-            {
-                if (chatter.Value.Count == 0)
-                    Logger.Instance.Warn($"Failed to resolve chatter with name {chatter.Key}");
-                else if (chatter.Value.Count > 1)
-                {
-                    var strEntities = string.Join(", ", chatter.Value.Select(_ => _.ToString()));
-                    Logger.Instance.Warn(
-                        $"Chatter with name {chatter.Key} resolved in more than 1 entities: {strEntities}");
-                }
-            }
-
+            var c = ResolveHelper.GetUsersByNames(chatters.Select(_ => _.Username).ToList());
             var tmp = new List<string>();
-
             foreach (var e in c)
                 tmp.AddRange(e.Value.Select(_ => _.Id));
 
@@ -212,7 +196,7 @@ namespace WTFTwitch.Bot
         public void OnMessageReceived(object sender, OnMessageReceivedArgs e)
         {
             _statisticManager.Update(e.ChatMessage.UserId, false);
-            Logger.Instance.Info($"Received message: {e.ChatMessage.Message} author: {e.ChatMessage.Username} channel: {e.ChatMessage.Channel}");
+            Logger.Instance.Info($"Received message: {e.ChatMessage.Message}, author: {ResolveHelper.GetInfo(e.ChatMessage.UserId)}, channel: {e.ChatMessage.Channel}");
         }
 
         public void OnCommand(object sender, OnChatCommandReceivedArgs e)
@@ -222,7 +206,7 @@ namespace WTFTwitch.Bot
 
         public void OnUserJoined(object sender, OnUserJoinedArgs e)
         {
-            var userInfos = _resolveHelper.GetUsersByName(e.Username);
+            var userInfos = ResolveHelper.GetUsersByName(e.Username);
             if (userInfos.Count == 0)
             {
                 Logger.Instance.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.Name}");
@@ -230,8 +214,8 @@ namespace WTFTwitch.Bot
             }
             else if (userInfos.Count > 1)
             {
-                Logger.Instance.Warn($"Joined user {e.Username} for channel {Channel.Name} resolves in more than 1 entities: " +
-                                     string.Join(", ", userInfos.Select(_ => _.ToString())));
+                Logger.Instance.Warn($"Joined user {e.Username} for channel {Channel.Name} resolves in more than 1 entities " +
+                    string.Join(", ", userInfos.Select(_ => _.ToString())));
                 return;
             }
 
@@ -239,14 +223,14 @@ namespace WTFTwitch.Bot
             if (info == default(UserInfo))
                 return;
 
-            Logger.Instance.Info($"User [{e.Username}] joined channel [{Channel.Name}]");
+            Logger.Instance.Info($"User {info} joined channel [{Channel.Name}]");
 
             _statisticManager.Update(info.Id, false);
         }
 
         public void OnUserLeft(object sender, OnUserLeftArgs e)
         {
-            var userInfos = _resolveHelper.GetUsersByName(e.Username);
+            var userInfos = ResolveHelper.GetUsersByName(e.Username);
             if (userInfos.Count == 0)
             {
                 Logger.Instance.Warn($"Failed to resolve left user {e.Username} for channel {Channel.Name}");
@@ -263,7 +247,7 @@ namespace WTFTwitch.Bot
             if (info == default(UserInfo))
                 return;
 
-            Logger.Instance.Info($"User [{e.Username}] left channel [{Channel.Name}]");
+            Logger.Instance.Info($"User {info} left channel [{Channel.Name}]");
 
             _statisticManager.Update(info.Id, true);
         }
