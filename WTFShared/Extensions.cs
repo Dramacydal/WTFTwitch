@@ -2,7 +2,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using WTFShared.Database;
+using TaskStatus = WTFShared.Tasks.TaskStatus;
 
 namespace WTFShared
 {
@@ -98,6 +100,26 @@ namespace WTFShared
             }
 
             return res;
+        }
+
+        public static bool IsPending(this TaskStatus status)
+        {
+            return status == TaskStatus.None || status == TaskStatus.Executing || status == TaskStatus.Processing;
+        }
+
+        public static int IndexOf<T>(this IEnumerable<T> source, Func<T, bool> predicate)
+        {
+            var index = 0;
+            foreach (var item in source)
+            {
+                if (predicate.Invoke(item))
+                {
+                    return index;
+                }
+                index++;
+            }
+
+            return -1;
         }
     }
 }

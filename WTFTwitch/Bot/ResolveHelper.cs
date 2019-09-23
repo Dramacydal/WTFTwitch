@@ -160,8 +160,11 @@ namespace WTFTwitch.Bot
             else
                 result = GetUsersByName(nameOrId);
 
-            Logger.Instance.Debug($"Name or id [{nameOrId}] resolves in more than 1 entities: " +
-                string.Join(", ", result.Select(_ => _.ToString())));
+            if (result.Count > 1)
+            {
+                Logger.Instance.Debug($"Name or id [{nameOrId}] resolves in more than 1 entities: " +
+                                      string.Join(", ", result.Select(_ => _.ToString())));
+            }
 
             return result;
         }
