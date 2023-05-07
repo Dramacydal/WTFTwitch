@@ -7,25 +7,25 @@ using WTFShared.Logging;
 
 namespace WTFShared.Tasks
 {
-    public class CallbackTask : WTFTask
+    public abstract class CallbackTask : WTFTask
     {
-        public CallbackTask(TaskType type, Func<TaskStatus> callback, uint tryCount = 0) : base(type, tryCount)
+        public CallbackTask(TaskType type, Func<WTFTask, WTFTaskStatus> callback, uint tryCount = 0) : base(type, tryCount)
         {
             this._callback = callback;
         }
 
-        private readonly Func<TaskStatus> _callback;
+        private readonly Func<WTFTask, WTFTaskStatus> _callback;
 
-        protected override TaskStatus DoWork()
+        protected override WTFTaskStatus DoWork()
         {
             try
             {
-                return _callback?.Invoke() ?? TaskStatus.Finished;
+                return _callback?.Invoke(this) ?? WTFTaskStatus.Finished;
             }
             catch (Exception e)
             {
                 Logger.Instance.Error($"Error executing wtfTask: {e.Message}");
-                return TaskStatus.Failed;
+                return WTFTaskStatus.Failed;
             }
         }
     }

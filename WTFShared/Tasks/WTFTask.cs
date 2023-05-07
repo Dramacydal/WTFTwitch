@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading;
-using Org.BouncyCastle.Crypto.Tls;
+using WTFShared.Logging;
 
 namespace WTFShared.Tasks
 {
@@ -18,7 +18,7 @@ namespace WTFShared.Tasks
 
         public DateTime Moment { get; private set; } = DateTime.Now;
 
-        public TaskStatus Status { get; private set; }
+        public WTFTaskStatus Status { get; private set; }
 
         public uint TryCount { get; }
 
@@ -26,47 +26,57 @@ namespace WTFShared.Tasks
 
         public virtual void Reset()
         {
-            Status = TaskStatus.None;
+            Status = WTFTaskStatus.None;
         }
 
         public void Schedule(DateTime when) => Moment = when;
 
         public void Schedule(TimeSpan delay) => Moment = DateTime.Now.Add(delay);
 
-        public void Abort() => Status = TaskStatus.Abort;
+        public void Abort() => Status = WTFTaskStatus.Abort;
 
-        public TaskStatus Wait(TimeSpan time)
+        public WTFTaskStatus Wait(TimeSpan time = default(TimeSpan))
         {
             var till = DateTime.Now;
             if (time.TotalSeconds > 0)
                 till = till.Add(time);
 
-            while (DateTime.Now < till && Status.IsPending())
+            while ((time.TotalSeconds <= 0 ||  DateTime.Now < till) && Status.IsPending())
                 Thread.Sleep(50);
 
             return Status;
         }
 
-        protected abstract TaskStatus DoWork();
+        protected abstract WTFTaskStatus DoWork();
 
         public void SetProcessing()
         {
-            Status = TaskStatus.Processing;
+            Status = WTFTaskStatus.Processing;
         }
 
-        public TaskStatus Execute()
+        public WTFTaskStatus Execute()
         {
-            Status = TaskStatus.Executing;
+            Status = WTFTaskStatus.Executing;
 
             ++_currentTryCount;
-            Status = DoWork();
+            try
+            {
+                Status = DoWork();
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.Error($"Task.Execute failed: {e.Message}");
+                Status = WTFTaskStatus.Failed;
+            }
 
-            if (Status == TaskStatus.Executing)
-                Status = TaskStatus.Finished;
-            if (Status == TaskStatus.Failed && _currentTryCount < TryCount)
-                Status = TaskStatus.Retry;
+            if (Status == WTFTaskStatus.Executing)
+                Status = WTFTaskStatus.Finished;
+            if (Status == WTFTaskStatus.Failed && _currentTryCount < TryCount)
+                Status = WTFTaskStatus.Retry;
 
             return Status;
         }
+
+        public abstract override string ToString();
     }
 }

@@ -8,6 +8,7 @@ namespace WTFShared.Tasks
 {
     public enum TaskType
     {
-        General
+        General,
+        Db
     }
 }

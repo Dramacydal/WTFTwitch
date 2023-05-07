@@ -1,43 +1,87 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using WTFShared.Logging;
 
 namespace WTFShared.Tasks
 {
-    public class TaskManager
+    public static class TaskManager
     {
-        private readonly Dictionary<TaskType, List<WTFTask>> _tasks = new Dictionary<TaskType, List<WTFTask>>();
-        private readonly Task[] _threadPool = new Task[10];
+        private static readonly ConcurrentDictionary<TaskType, List<WTFTask>> _tasks = new ConcurrentDictionary<TaskType, List<WTFTask>>();
+        private static readonly Task[] _threadPool = new Task[10];
 
-        public TaskManager()
+        private static readonly CancellationTokenSource _updateThreadTokenSource = new CancellationTokenSource();
+        private static Task _updateTask;
+
+        public static bool IsStopped => _updateTask == null || _updateTask.Status == TaskStatus.RanToCompletion;
+
+        private static void UpdateThread(CancellationToken token)
         {
+            Logger.Instance.Info("===Task manager update thread started===");
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    Update(20);
+                }
+                catch (Exception e)
+                {
+                    Logger.Instance.Error($"Task manager update loop failed: {e.Info()}");
+                }
+
+                Thread.Sleep(200);
+            }
         }
 
-        public void AddTask(WTFTask wtfTask)
+        public static void Start()
         {
-            wtfTask.Reset();
-            if (!_tasks.ContainsKey(wtfTask.Type))
-                _tasks[wtfTask.Type] = new List<WTFTask>();
-
-            _tasks[wtfTask.Type].Add(wtfTask);
+            _updateTask = Task.Run(() => UpdateThread(_updateThreadTokenSource.Token));
         }
 
-        public void AddTask(WTFTask wtfTask, DateTime moment)
+        public static void Stop(bool async = false)
         {
-            wtfTask.Schedule(moment);
+            _updateThreadTokenSource.Cancel();
 
-            AddTask(wtfTask);
+            if (!async)
+                WaitUntilStopped();
         }
 
-        public void AddTask(WTFTask wtfTask, TimeSpan delay)
+        private static void WaitUntilStopped()
         {
-            wtfTask.Schedule(delay);
-
-            AddTask(wtfTask);
+            while (!IsStopped)
+                Thread.Sleep(50);
         }
 
-        public void Update(int maxTasks = 0)
+        public static WTFTask AddTask(WTFTask task)
+        {
+            task.Reset();
+            if (!_tasks.ContainsKey(task.Type))
+                _tasks[task.Type] = new List<WTFTask>();
+
+            Logger.Instance.Info($"TaskManager: Adding task {task.Id} {task.ToString()} of type {task.GetType()}");
+            _tasks[task.Type].Add(task);
+
+            return task;
+        }
+
+        public static WTFTask AddTask(WTFTask task, DateTime moment)
+        {
+            task.Schedule(moment);
+
+            return AddTask(task);
+        }
+
+        public static WTFTask AddTask(WTFTask task, TimeSpan delay)
+        {
+            task.Schedule(delay);
+
+            return AddTask(task);
+        }
+
+        public static void Update(int maxTasks = 0)
         {
             var taskCounter = 0;
 
@@ -51,30 +95,30 @@ namespace WTFShared.Tasks
                 {
                     switch (task.Status)
                     {
-                        case TaskStatus.None:
-                            if ((maxTasks <= 0 || taskCounter > maxTasks) && task.Moment < DateTime.Now)
+                        case WTFTaskStatus.None:
+                            if ((maxTasks <= 0 || taskCounter < maxTasks) && task.Moment < DateTime.Now)
                             {
                                 ++taskCounter;
                                 ExecuteTask(task);
                             }
 
                             break;
-                        case TaskStatus.Retry:
-                            Logger.Instance.Error($"WTFTask {task.Id} failed and retrying");
+                        case WTFTaskStatus.Retry:
+                            Logger.Instance.Error($"TaskManager: WTFTask {task.Id} failed and retrying");
                             break;
-                        case TaskStatus.Failed:
+                        case WTFTaskStatus.Failed:
                             if (task.TryCount > 0)
-                                Logger.Instance.Error($"WTFTask {task.Id} failed after {task.TryCount} retries");
+                                Logger.Instance.Error($"TaskManager: WTFTask {task.Id} failed after {task.TryCount} retries");
                             else
-                                Logger.Instance.Error($"WTFTask {task.Id} failed");
+                                Logger.Instance.Error($"TaskManager: WTFTask {task.Id} failed");
                             removedTasks.Add(task);
                             break;
-                        case TaskStatus.Abort:
-                            Logger.Instance.Info($"WTFTask {task.Id} aborted");
+                        case WTFTaskStatus.Abort:
+                            Logger.Instance.Info($"TaskManager: WTFTask {task.Id} aborted");
                             removedTasks.Add(task);
                             break;
-                        case TaskStatus.Finished:
-                            Logger.Instance.Info($"WTFTask {task.Id} finished successfully");
+                        case WTFTaskStatus.Finished:
+                            Logger.Instance.Info($"TaskManager: WTFTask {task.Id} {task.ToString()} finished successfully");
                             removedTasks.Add(task);
                             break;
                     }
@@ -82,10 +126,13 @@ namespace WTFShared.Tasks
             }
 
             foreach (var task in removedTasks)
+            {
+                Logger.Instance.Debug($"TaskManager: Removing task {task.Id} of type {task.GetType()}");
                 _tasks[task.Type].Remove(task);
+            }
         }
 
-        private bool ExecuteTask(WTFTask task)
+        private static bool ExecuteTask(WTFTask task)
         {
             var ind = _threadPool.IndexOf(_ =>
                 _ == null ||

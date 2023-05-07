@@ -13,23 +13,34 @@ namespace WTFTwitch.Bot
 
         public BotManager()
         {
-            var settings = LoadBotSettings();
+        }
+
+        public void LoadSettings(int botId = 0, int channelId = 0)
+        {
+            var settings = LoadBotSettings(botId);
 
             foreach (var setting in settings)
             {
+                if (botId != 0 && channelId != 0)
+                    setting.ExplicitChannelId = channelId;
+
                 try
                 {
-                    _bots.Add(new ChatBot(setting));
+                    var bot = new ChatBot(setting);
+                    _bots.Add(bot);
                 }
                 catch (Exception e)
                 {
-                   Logger.Instance.Error($"Failed to initialize bot: {e.Info()}");
+                    Logger.Instance.Error($"Failed to initialize bot: {e.Info()}");
                 }
             }
         }
 
         public void Start()
         {
+            if (_bots.Count == 0)
+                LoadSettings();
+
             foreach (var bot in _bots)
                 bot.Start();
         }
@@ -40,13 +51,19 @@ namespace WTFTwitch.Bot
                 bot.Stop();
         }
 
-        private static IEnumerable<BotSettings> LoadBotSettings()
+        private static IEnumerable<BotSettings> LoadBotSettings(int botId = 0)
         {
             List<BotSettings> botSettings = new List<BotSettings>();
 
             try
             {
-                using (var command = new MySqlCommand("SELECT id, bot_name, access_token, telegram_token FROM bots", DbConnection.GetConnection()))
+                var query = "SELECT id, bot_name, telegram_token FROM bots WHERE ";
+                if (botId != 0)
+                    query += $"id = {botId}";
+                else
+                    query += "enabled = 1";
+
+                using (var command = new MySqlCommand(query, DbConnection.GetConnection()))
                 {
                     using (var reader = command.ExecuteReader())
                     {
@@ -56,8 +73,7 @@ namespace WTFTwitch.Bot
                             {
                                 Id = reader.GetInt32(0),
                                 Name = reader.GetString(1),
-                                AccessToken = reader.GetString(2),
-                                TelegramToken = !reader.IsDBNull(3) ? reader.GetString(3) : null
+                                TelegramToken = !reader.IsDBNull(2) ? reader.GetString(2) : null,
                             });
                         }
                     }

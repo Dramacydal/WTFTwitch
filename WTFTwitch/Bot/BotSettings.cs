@@ -7,8 +7,9 @@ namespace WTFTwitch.Bot
     {
         public int Id;
         public string Name;
-        public string AccessToken;
         public string TelegramToken;
+
+        public int ExplicitChannelId;
 
         public ChatBot Bot;
         public TwitchClient Client => Bot?.Client;

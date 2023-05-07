@@ -1,42 +1,43 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 using MySql.Data.MySqlClient;
 using WTFShared.Database;
-using WTFShared.Logging;
 
 namespace WTFShared.Tasks
 {
     public class QueryTask : CallbackTask
     {
-        public QueryTask(MySqlCommand command, uint tryCount = 0, Func<TaskStatus> callback = null) : base(TaskType.General, callback, tryCount)
+        public QueryTask(MySqlCommand command, uint tryCount = 0, Func<WTFTask, WTFTaskStatus> callback = null) : base(TaskType.Db, callback, tryCount)
         {
             _command = command;
         }
 
-        private readonly MySqlCommand _command;
+        protected MySqlCommand _command;
 
-        protected override TaskStatus DoWork()
+        protected override WTFTaskStatus DoWork()
         {
-            try
+            bool ready = false;
+            DbManager.AddTask(_command, rows =>
             {
-                _command.Connection = DbConnection.GetConnection();
-                using (var reader = _command.ExecuteReader())
-                {
-                    Rows = reader.ReadAll();
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Instance.Error($"Failed to execute SQL: {e.Message}");
-                return TaskStatus.Failed;
-            }
+                Rows = rows;
+                ready = true;
+            });
+            DbManager.Update();
 
+            while (!ready)
+            {
+                Thread.Sleep(10);
+                DbManager.Update();
+            }
+            
             return base.DoWork();
         }
 
         public ResultRows Rows { get; private set; }
+
+        public override string ToString()
+        {
+            return this.GetType().Name;
+        }
     }
 }

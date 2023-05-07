@@ -46,15 +46,20 @@ namespace WTFTwitch.Bot
             this._settings = settings;
             settings.Bot = this;
 
-            InitializeClient();
+            var container = ApiPool.FindByBotName(_settings.Name);
+            if (container == null)
+                throw new Exception("Failed to get api container by bot");
+
+            InitializeClient(container.AccessToken);
+
             InitializeTelegram();
 
             _whisperCommandHandler = new WhisperCommandHandler(_settings);
         }
 
-        private void InitializeClient()
+        private void InitializeClient(string accessToken)
         {
-            var credentials = new ConnectionCredentials(_settings.Name, _settings.AccessToken);
+            var credentials = new ConnectionCredentials(_settings.Name, accessToken);
 
             Client = new TwitchClient();
             Client.Initialize(credentials);
@@ -172,11 +177,21 @@ namespace WTFTwitch.Bot
 
             try
             {
-                using (var command = new MySqlCommand("SELECT bwc.channel_id, btn.telegram_channel_id, bwc.commands_enabled != 0, bwc.install_date FROM bot_watched_channels bwc " +
+                var query =
+                    "SELECT bwc.channel_id, btn.telegram_channel_id, bwc.commands_enabled != 0, bwc.install_date FROM bot_watched_channels bwc " +
                     "LEFT JOIN bot_telegram_notify btn ON bwc.channel_id = btn.channel_id AND bwc.bot_id = btn.bot_id " +
-                    "WHERE bwc.bot_id = @bot_id AND bwc.enabled != 0", DbConnection.GetConnection()))
+                    "WHERE bwc.bot_id = @bot_id AND ";
+
+                if (_settings.ExplicitChannelId != 0)
+                    query += "bwc.channel_id = @channel_id";
+                else
+                    query += "bwc.enabled != 0";
+
+                using (var command = new MySqlCommand(query, DbConnection.GetConnection()))
                 {
                     command.Parameters.AddWithValue("@bot_id", _settings.Id);
+                    if (_settings.ExplicitChannelId != 0)
+                        command.Parameters.AddWithValue("@channel_id", _settings.ExplicitChannelId);
 
                     using (var reader = command.ExecuteReader())
                     {
@@ -220,14 +235,14 @@ namespace WTFTwitch.Bot
             {
                 try
                 {
-                    var res = ApiPool.GetApi().V5.Channels.GetChannelByIDAsync(channel.Id).Result;
-                    if (res == null)
+                    var res1 = ApiPool.GetContainer().API.Helix.Channels.GetChannelInformationAsync(channel.Id).Result;
+                    if (res1 == null || res1.Data.Length == 0)
                     {
                         Logger.Instance.Warn($"Failed to resolve channel with id '{channel.Id}");
                         continue;
                     }
 
-                    channel.Name = res.Name.ToLower();
+                    channel.Name = res1.Data[0].BroadcasterLogin.ToLower();
                 }
                 catch (Exception e)
                 {
@@ -243,6 +258,10 @@ namespace WTFTwitch.Bot
         {
             while (!token.IsCancellationRequested)
             {
+                //Logger.Instance.Debug("Update loop");
+
+                //this.Client.Reconnect
+
                 try
                 {
                     ReconnectIfNeeded();
@@ -252,7 +271,7 @@ namespace WTFTwitch.Bot
                     Logger.Instance.Error($"Chat bot update loop failed: {e.Info()}");
                 }
 
-                Thread.Sleep(10000);
+                Thread.Sleep(3000);
             }
         }
 
@@ -263,6 +282,17 @@ namespace WTFTwitch.Bot
 
             if (!Client.IsInitialized)
                 return;
+
+            ApiPool.Reload();
+            var container = ApiPool.FindByBotName(_settings.Name);
+            if (container != null && "oauth:" + container.AccessToken != Client.ConnectionCredentials.TwitchOAuth)
+            {
+                Logger.Instance.Warn("Client token changed, reconnecting chat bot");
+                Client.Disconnect();
+                InitializeClient(container.AccessToken);
+                Start();
+                return;
+            }
 
             if (!Client.IsConnected)
                 Client.Connect();

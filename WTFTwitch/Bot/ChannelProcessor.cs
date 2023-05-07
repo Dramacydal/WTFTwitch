@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.InputFiles;
 using TwitchLib.Client;
@@ -17,7 +18,7 @@ using WTFTwitch.Bot.Commands;
 
 namespace WTFTwitch.Bot
 {
-    using TwitchStream = TwitchLib.Api.V5.Models.Streams.Stream;
+    using TwitchStream = TwitchLib.Api.Helix.Models.Streams.GetStreams.Stream;
 
     class ChannelProcessor
     {
@@ -78,7 +79,8 @@ namespace WTFTwitch.Bot
 
         private bool CheckIsBroadcasting()
         {
-            return ApiPool.GetApi().V5.Streams.BroadcasterOnlineAsync(Channel.Id).Result;
+            var res = ApiPool.GetContainer().API.Helix.Streams.GetStreamsAsync(userIds: new List<string> { Channel.Id }).Result;
+            return res.Streams.Length > 0;
         }
 
         private void UpdateChannel()
@@ -88,9 +90,9 @@ namespace WTFTwitch.Bot
 
             if (_needNotify || IsBroadcasting && oldOnline != IsBroadcasting)
             {
-                var stream = ApiPool.GetApi().V5.Streams.GetStreamByUserAsync(Channel.Id).Result;
-                if (stream.Stream != null)
-                    NotifyOnline(stream.Stream);
+                var streamResult = ApiPool.GetContainer().API.Helix.Streams.GetStreamsAsync(userIds:new List<string> { Channel.Id }).Result;
+                if (streamResult.Streams.Length > 0)
+                    NotifyOnline(streamResult.Streams[0]);
             }
             else
                 _needNotify = false;
@@ -102,7 +104,7 @@ namespace WTFTwitch.Bot
             if (Channel.TelegramNotifyChannels.Count == 0)
                 return;
 
-            var message = $"{stream.Channel.Status}\r\n{stream.Game}\r\nhttps://www.twitch.tv/{Channel.Name}";
+            var message = $"{stream.Title}\r\n{stream.GameName}\r\nhttps://www.twitch.tv/{Channel.Name}";
 
             var priorityDimensions = new List<ValueTuple<int,int>>
             {
@@ -119,7 +121,7 @@ namespace WTFTwitch.Bot
             {
                 foreach (var (width, height) in priorityDimensions)
                 {
-                    var checkUrl = stream.Preview.Template.Replace("{width}", width.ToString())
+                    var checkUrl = stream.ThumbnailUrl.Replace("{width}", width.ToString())
                         .Replace("{height}", height.ToString());
 
                     var request = WebRequest.CreateHttp(checkUrl);
@@ -181,11 +183,11 @@ namespace WTFTwitch.Bot
                 return;
             }
 
-            var chatters = ApiPool.GetApi().Undocumented.GetChattersAsync(Channel.Name).Result;
+            var chatters = ApiPool.GetContainer().API.Undocumented.GetChattersAsync(Channel.Name).Result;
             if (chatters.Count == 0)
                 return;
 
-            var c = ResolveHelper.GetUsersByNames(chatters.Select(_ => _.Username).ToList());
+            var c = ResolveHelper.GetUsersByNames(chatters.Select(_ => _.Username).ToList(), true);
             var tmp = new List<string>();
             foreach (var e in c)
                 tmp.AddRange(e.Value.Select(_ => _.Id));
@@ -206,7 +208,7 @@ namespace WTFTwitch.Bot
 
         public void OnUserJoined(object sender, OnUserJoinedArgs e)
         {
-            var userInfos = ResolveHelper.GetUsersByName(e.Username);
+            var userInfos = ResolveHelper.GetUsersByName(e.Username, true);
             if (userInfos.Count == 0)
             {
                 Logger.Instance.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.Name}");
@@ -230,7 +232,7 @@ namespace WTFTwitch.Bot
 
         public void OnUserLeft(object sender, OnUserLeftArgs e)
         {
-            var userInfos = ResolveHelper.GetUsersByName(e.Username);
+            var userInfos = ResolveHelper.GetUsersByName(e.Username, true);
             if (userInfos.Count == 0)
             {
                 Logger.Instance.Warn($"Failed to resolve left user {e.Username} for channel {Channel.Name}");

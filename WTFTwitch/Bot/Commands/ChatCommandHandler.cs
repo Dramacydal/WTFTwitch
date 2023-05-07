@@ -52,7 +52,7 @@ namespace WTFTwitch.Bot.Commands
 
         public void Handle(ChatCommand command)
         {
-            if (!_channel.CommandsEnabled && command.ChatMessage.Username.ToLower() != "zakamurite")
+            if (!_channel.CommandsEnabled && command.ChatMessage.Username.ToLower() != "45729358")
                 return;
 
             switch (command.CommandText.ToLower())
@@ -84,14 +84,14 @@ namespace WTFTwitch.Bot.Commands
 
             var nameOrId = command.ArgumentsAsList[0];
 
-            var res = ResolveHelper.Resolve(nameOrId);
+            var res = ResolveHelper.Resolve(nameOrId, false);
             if (res.Count == 0)
             {
                 SendMessage($"Failed to resolve user '{nameOrId}'");
                 return;
             }
 
-            SendMessage(string.Join(", ", res.Select(_ => _.ToString())));
+            SendMessage(string.Join(", ", res.Select(_ => _.ToFullString())));
         }
 
         private void HandleTTSCommand(ChatCommand command)
@@ -126,7 +126,7 @@ namespace WTFTwitch.Bot.Commands
 
                     var userStats = data.Select(_ => new UserStat()
                     {
-                        Info = ResolveHelper.GetUserById(_[0] as string),
+                        Info = ResolveHelper.GetUserById(_[0] as string, true),
                         WatchTime = Convert.ToUInt32(_[1])
                     });
 
@@ -146,7 +146,7 @@ namespace WTFTwitch.Bot.Commands
                 var cacheKey = $"stats_{_channel.Id}_{userName}";
                 if (!CacheHelper.Load(cacheKey, out int time) || time == 0)
                 {
-                    var userInfos = ResolveHelper.Resolve(userName);
+                    var userInfos = ResolveHelper.Resolve(userName, true);
                     if (userInfos.Count == 0)
                     {
                         SendMessage($"User {userName} not found");
@@ -189,15 +189,15 @@ namespace WTFTwitch.Bot.Commands
             var cacheKey = $"uptime_{_channel.Id}";
             if (!CacheHelper.Load(cacheKey, out DateTime startDate) || startDate.IsEmpty())
             {
-                var res = ApiPool.GetApi().V5.Streams.GetStreamByUserAsync(_channel.Id, "live").Result;
-                if (res.Stream == null)
+                var res = ApiPool.GetContainer().API.Helix.Streams.GetStreamsAsync(userIds:new List<string> { _channel.Id }).Result;
+                if (res.Streams.Length == 0)
                 {
                     SendEmote("Uptime info not available");
                     CacheHelper.Save(cacheKey, default(DateTime), TimeSpan.FromMinutes(1));
                     return;
                 }
 
-                startDate = res.Stream.CreatedAt;
+                startDate = res.Streams[0].StartedAt;
                 CacheHelper.Save(cacheKey, startDate, TimeSpan.FromMinutes(1));
             }
 
@@ -210,7 +210,7 @@ namespace WTFTwitch.Bot.Commands
 
         private void HandleIgnoreStatCommand(ChatCommand command)
         {
-            if (command.ChatMessage.Username.ToLower() != "zakamurite")
+            if (command.ChatMessage.UserId.ToLower() != "45729358")
                 return;
 
             if (command.ArgumentsAsList.Count < 1)
@@ -220,7 +220,7 @@ namespace WTFTwitch.Bot.Commands
             }
 
             var nameOrId = command.ArgumentsAsList[0];
-            var userInfos = ResolveHelper.Resolve(nameOrId);
+            var userInfos = ResolveHelper.Resolve(nameOrId, true);
             if (userInfos.Count == 0)
             {
                 SendMessage($"User {nameOrId} not found");
@@ -236,12 +236,12 @@ namespace WTFTwitch.Bot.Commands
             if (command.ArgumentsAsList.Count == 1)
             {
                 ResolveHelper.AddIgnoreUserStat(userInfos[0]);
-                SendMessage($"Added user '{userInfos[0].ToString()}' to ignore stat list");
+                SendMessage($"Added user {userInfos[0].ToString()} to ignore stat list");
             }
             else
             {
                 ResolveHelper.RemoveIgnoreUserStat(userInfos[0]);
-                SendMessage($"Removed user '{userInfos[0].ToString()}' from ignore stat list");
+                SendMessage($"Removed user {userInfos[0].ToString()} from ignore stat list");
             }
         }
 
@@ -257,7 +257,7 @@ namespace WTFTwitch.Bot.Commands
             var lines = data.Select(_ =>
             {
                 var userId = _[0] as string;
-                var userInfo = ResolveHelper.GetUserById(userId);
+                var userInfo = ResolveHelper.GetUserById(userId, true);
                 return userInfo != null ? userInfo.ToString() : $"'{userId}': <unknown>";
             });
 

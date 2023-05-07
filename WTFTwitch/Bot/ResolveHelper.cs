@@ -1,17 +1,32 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using MySql.Data.MySqlClient;
+using TwitchLib.Api.Helix.Models.Users.GetUsers;
 using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
+using WTFShared.Tasks;
+using WTFTwitch.Tasks.User;
 
 namespace WTFTwitch.Bot
 {
     class UserInfo
     {
+        private readonly User _user;
+
+        public UserInfo(User user)
+        {
+            this._user = user;
+
+            Id = user.Id;
+            Name = user.Login;
+            DisplayName = user.DisplayName;
+        }
+
         public UserInfo(string id, string name, string displayName)
         {
             Id = id;
@@ -26,6 +41,14 @@ namespace WTFTwitch.Bot
         public override string ToString()
         {
             return $"'{DisplayName}' ('{Name}', {Id})";
+        }
+
+        public string ToFullString()
+        {
+            if (_user == null)
+                return _user.ToString();
+
+            return $"'{DisplayName}' ('{Name}', {Id}, created: {_user.CreatedAt})";
         }
 
         public static readonly UserInfo Empty = new UserInfo("<Unknown>", "<Unknown>", "<Unknown>");
@@ -86,19 +109,22 @@ namespace WTFTwitch.Bot
             }
         }
 
-        public static UserInfo GetUserById(string userId)
+        public static UserInfo GetUserById(string userId, bool useCache)
         {
-            var userName = UsersById.Get(userId);
-            if (userName != null)
-                return userName;
+            if (useCache)
+            {
+                var userName = UsersById.Get(userId);
+                if (userName != null)
+                    return userName;
+            }
 
             try
             {
-                var user = ApiPool.GetApi().V5.Users.GetUserByIDAsync(userId).Result;
-                if (user == null)
+                var userResult = ApiPool.GetContainer().API.Helix.Users.GetUsersAsync(ids:new List<string> { userId }).Result;
+                if (userResult == null || userResult.Users.Length == 0)
                     return null;
 
-                var userInfo = new UserInfo(userId, user.Name, user.DisplayName);
+                var userInfo = new UserInfo(userResult.Users[0]);
                 Store(userInfo);
 
                 return userInfo;
@@ -120,45 +146,27 @@ namespace WTFTwitch.Bot
             if (!UsersByName[info.Name.ToLower()].Any(_ => _.Id == info.Id))
                 UsersByName[info.Name.ToLower()].Add(info);
 
-            try
-            {
-                using (var query =
-                    new MySqlCommand(
-                        "INSERT IGNORE INTO user_info (id, name, display_name) VALUE (@id, @name, @display_name)",
-                        DbConnection.GetConnection()))
-                {
-                    query.Parameters.AddWithValue("@id", info.Id);
-                    query.Parameters.AddWithValue("@name", info.Name);
-                    query.Parameters.AddWithValue("@display_name", info.DisplayName);
-
-                    query.ExecuteNonQuery();
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Instance.Error($"Failed to save to database resolved user {info.ToString()}: {e.Info()}");
-
-            }
+            TaskManager.AddTask(new StoreCacheTask(info));
         }
 
-        public static List<UserInfo> GetUsersByName(string userName)
+        public static List<UserInfo> GetUsersByName(string userName, bool useCache)
         {
-            var res = GetUsersByNames(new List<string>() {userName});
+            var res = GetUsersByNames(new List<string>() {userName}, useCache);
 
             return res[userName.ToLower()];
         }
 
-        public static List<UserInfo> Resolve(string nameOrId)
+        public static List<UserInfo> Resolve(string nameOrId, bool useCache)
         {
             List<UserInfo> result;
             if (Regex.IsMatch(nameOrId, @"^\d+$"))
             {
-                var user = GetUserById(nameOrId);
+                var user = GetUserById(nameOrId, useCache);
 
                 result = user != null ? new List<UserInfo> {user} : new List<UserInfo>();
             }
             else
-                result = GetUsersByName(nameOrId);
+                result = GetUsersByName(nameOrId, useCache);
 
             if (result.Count > 1)
             {
@@ -169,9 +177,11 @@ namespace WTFTwitch.Bot
             return result;
         }
 
-        public static Dictionary<string, List<UserInfo>> GetUsersByNames(List<string> userNames)
+        public static Dictionary<string, List<UserInfo>> GetUsersByNames(IEnumerable<string> userNames, bool useCache)
         {
-            var cached = UsersByName.Where(_ =>
+            var cached = 
+                !useCache ? 
+                    new List<KeyValuePair<string, List<UserInfo>>>() : UsersByName.Where(_ =>
                 _.Value.Any(_2 => userNames.Any(_3 => _3.ToLower() == _2.Name.ToLower())));
 
             var uncached =
@@ -184,15 +194,31 @@ namespace WTFTwitch.Bot
             if (uncached.Any())
             {
                 List<UserInfo> requested = new List<UserInfo>();
-                try
+                if (uncached.Count() > 25)
                 {
-                    var apiResult = ApiPool.GetApi().V5.Users.GetUsersByNameAsync(uncached.ToList());
-                    if (apiResult.Result.Total > 0)
-                        requested.AddRange(apiResult.Result.Matches.Select(_ => new UserInfo(_.Id, _.Name, _.DisplayName)));
+                    var split = uncached.Split(25);
+
+                    foreach (var s in split)
+                    {
+                        var res = GetUsersByNames(s, useCache);
+                        foreach (var r in res)
+                            if (r.Value.Count > 0)
+                                requested.Add(r.Value[0]);
+                    }
                 }
-                catch (Exception e)
+                else
                 {
-                    Logger.Instance.Error($"Error : {e.Info()}");
+                    try
+                    {
+                        var apiResult2 = ApiPool.GetContainer().API.Helix.Users.GetUsersAsync(logins:uncached.ToList()).Result;
+                        if (apiResult2.Users.Length > 0)
+                            requested.AddRange(
+                                apiResult2.Users.Select(_ => new UserInfo(_)));
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Instance.Error($"Error : {e.Info()}");
+                    }
                 }
 
                 foreach (var info in requested)
@@ -250,7 +276,7 @@ namespace WTFTwitch.Bot
 
         public static string GetInfo(string nameOrId)
         {
-            var infos = Resolve(nameOrId);
+            var infos = Resolve(nameOrId, true);
             if (infos.Count == 0)
                 return UserInfo.Empty.ToString();
 
