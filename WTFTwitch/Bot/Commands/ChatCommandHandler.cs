@@ -189,7 +189,7 @@ namespace WTFTwitch.Bot.Commands
             var cacheKey = $"uptime_{_channel.Id}";
             if (!CacheHelper.Load(cacheKey, out DateTime startDate) || startDate.IsEmpty())
             {
-                var res = ApiPool.GetContainer().API.Helix.Streams.GetStreamsAsync(userIds:new List<string> { _channel.Id }).Result;
+                var res = ApiPool.GetContainer().Api.Helix.Streams.GetStreamsAsync(userIds:new List<string> { _channel.Id }).Result;
                 if (res.Streams.Length == 0)
                 {
                     SendEmote("Uptime info not available");

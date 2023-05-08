@@ -235,7 +235,7 @@ namespace WTFTwitch.Bot
             {
                 try
                 {
-                    var res1 = ApiPool.GetContainer().API.Helix.Channels.GetChannelInformationAsync(channel.Id).Result;
+                    var res1 = ApiPool.GetContainer().Api.Helix.Channels.GetChannelInformationAsync(channel.Id).Result;
                     if (res1 == null || res1.Data.Length == 0)
                     {
                         Logger.Instance.Warn($"Failed to resolve channel with id '{channel.Id}");

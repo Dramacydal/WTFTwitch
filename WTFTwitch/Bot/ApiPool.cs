@@ -165,7 +165,7 @@ namespace WTFTwitch.Bot
 
         private static void CheckCandidate(ApiContainer container)
         {
-            var res = container.API.Auth.ValidateAccessTokenAsync().Result;
+            var res = container.Api.Auth.ValidateAccessTokenAsync().Result;
 
             if (res == null)
                 return;
@@ -175,7 +175,7 @@ namespace WTFTwitch.Bot
 
             Logger.Instance.Warn($"API '{container.BotName}' expires in {res.ExpiresIn} secs, refreshing token");
 
-            var res3 = container.API.Auth.RefreshAuthTokenAsync(container.RefreshToken, container.Secret).Result;
+            var res3 = container.Api.Auth.RefreshAuthTokenAsync(container.RefreshToken, container.Secret).Result;
 
             container.AccessToken = res3.AccessToken;
             container.RefreshToken = res3.RefreshToken;

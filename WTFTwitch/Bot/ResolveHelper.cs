@@ -120,7 +120,7 @@ namespace WTFTwitch.Bot
 
             try
             {
-                var userResult = ApiPool.GetContainer().API.Helix.Users.GetUsersAsync(ids:new List<string> { userId }).Result;
+                var userResult = ApiPool.GetContainer().Api.Helix.Users.GetUsersAsync(ids:new List<string> { userId }).Result;
                 if (userResult == null || userResult.Users.Length == 0)
                     return null;
 
@@ -210,7 +210,7 @@ namespace WTFTwitch.Bot
                 {
                     try
                     {
-                        var apiResult2 = ApiPool.GetContainer().API.Helix.Users.GetUsersAsync(logins:uncached.ToList()).Result;
+                        var apiResult2 = ApiPool.GetContainer().Api.Helix.Users.GetUsersAsync(logins:uncached.ToList()).Result;
                         if (apiResult2.Users.Length > 0)
                             requested.AddRange(
                                 apiResult2.Users.Select(_ => new UserInfo(_)));

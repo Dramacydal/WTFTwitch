@@ -79,7 +79,7 @@ namespace WTFTwitch.Bot
 
         private bool CheckIsBroadcasting()
         {
-            var res = ApiPool.GetContainer().API.Helix.Streams.GetStreamsAsync(userIds: new List<string> { Channel.Id }).Result;
+            var res = ApiPool.GetContainer().Api.Helix.Streams.GetStreamsAsync(userIds: new List<string> { Channel.Id }).Result;
             return res.Streams.Length > 0;
         }
 
@@ -90,7 +90,7 @@ namespace WTFTwitch.Bot
 
             if (_needNotify || IsBroadcasting && oldOnline != IsBroadcasting)
             {
-                var streamResult = ApiPool.GetContainer().API.Helix.Streams.GetStreamsAsync(userIds:new List<string> { Channel.Id }).Result;
+                var streamResult = ApiPool.GetContainer().Api.Helix.Streams.GetStreamsAsync(userIds:new List<string> { Channel.Id }).Result;
                 if (streamResult.Streams.Length > 0)
                     NotifyOnline(streamResult.Streams[0]);
             }
@@ -183,7 +183,7 @@ namespace WTFTwitch.Bot
                 return;
             }
 
-            var chatters = ApiPool.GetContainer().API.Undocumented.GetChattersAsync(Channel.Name).Result;
+            var chatters = ApiPool.GetContainer().Api.Undocumented.GetChattersAsync(Channel.Name).Result;
             if (chatters.Count == 0)
                 return;
 
