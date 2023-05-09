@@ -1,23 +1,20 @@
 ﻿using TwitchLib.Api;
 using TwitchLib.Api.Core;
-using WTFTwitch.HttpClient;
 
 namespace WTFTwitch.Bot
 {
     internal class ApiContainer
     {
-        public string BotName;
-        public string UserId;
-        public string ClientId;
-        public string AccessToken;
+        public string BotName { get; init; }
+        public string UserId { get; init; }
+        public string ClientId { get; init; }
+        public string AccessToken { get; init; }
 
-        public TwitchAPI Api;
+        public TwitchAPI Api { get; private set; }
 
         public void Refresh()
         {
-            Api = new TwitchAPI(settings: new ApiSettings { ClientId = this.ClientId, AccessToken = this.AccessToken }
-                // , http: new WTFTwitchHttpClient()
-                );
+            Api = new TwitchAPI(settings: new ApiSettings { ClientId = this.ClientId, AccessToken = this.AccessToken });
         }
     }
 }

@@ -7,5 +7,6 @@
         public string TelegramChannel { get; set; }
         public string TelegramToken { get; set; }
         public bool CommandsEnabled { get; set; }
+        public bool WhispersEnabled { get; set; }
     }
 }

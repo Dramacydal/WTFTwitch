@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TwitchLib.Api;
-using TwitchLib.Client;
-using WTFTwitch.Bot;
+﻿using TwitchLib.Client;
 
 namespace WTFTwitch.Bot.Commands
 {

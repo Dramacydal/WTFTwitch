@@ -45,7 +45,7 @@ namespace WTFTwitch.Bot
 
         public string ToFullString()
         {
-            if (_user == null)
+            if (_user != null)
                 return _user.ToString();
 
             return $"'{DisplayName}' ('{Name}', {Id}, created: {_user.CreatedAt})";
@@ -56,9 +56,9 @@ namespace WTFTwitch.Bot
 
     static class ResolveHelper
     {
-        private static readonly ConcurrentDictionary<string, UserInfo> UsersById = new ConcurrentDictionary<string, UserInfo>();
-        private static readonly ConcurrentDictionary<string, List<UserInfo>> UsersByName = new ConcurrentDictionary<string, List<UserInfo>>();
-        private static readonly List<string> BotUsers = new List<string>();
+        private static readonly ConcurrentDictionary<string, UserInfo> UsersById = new();
+        private static readonly ConcurrentDictionary<string, List<UserInfo>> UsersByName = new();
+        private static readonly List<string> BotUsers = new();
 
         static ResolveHelper()
         {
@@ -84,9 +84,9 @@ namespace WTFTwitch.Bot
                     while (reader.Read())
                     {
                         var info = new UserInfo(
-                            reader.GetString(0),
-                            reader.GetString(1),
-                            reader.GetString(2)
+                            reader.GetString("id"),
+                            reader.GetString("name"),
+                            reader.GetString("display_name")
                         );
 
                         UsersById[info.Id] = info;
@@ -103,7 +103,7 @@ namespace WTFTwitch.Bot
                 {
                     while (reader.Read())
                     {
-                        BotUsers.Add(reader.GetString(0));
+                        BotUsers.Add(reader.GetString("user_id"));
                     }
                 }
             }

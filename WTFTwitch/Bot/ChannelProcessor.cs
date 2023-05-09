@@ -13,8 +13,8 @@ using TwitchLib.Api.Helix.Models.Chat.GetChatters;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
 using WTFShared;
-using WTFShared.Logging;
 using WTFTwitch.Bot.Commands;
+using WTFTwitch.Bot.Exceptions;
 
 namespace WTFTwitch.Bot
 {
@@ -154,19 +154,10 @@ namespace WTFTwitch.Bot
                     if (response.StatusCode != HttpStatusCode.OK)
                         continue;
 
-                    response.Content.ReadAsStream().CopyTo(memoryStream);
-
                     _bot.Logger.Debug($"Found {width}x{height} preview for channel {Channel.ChannelName}");
 
-                    using (var memoryStream2 = new MemoryStream())
-                    {
-                        var outImage = ResizeImage(memoryStream, width, height);
-                        outImage.Save(memoryStream2, ImageFormat.Jpeg);
-                        memoryStream2.Position = 0;
-                        
-                        var res = _telegram?.SendPhotoAsync(new ChatId(Settings.Channel.TelegramChannel),
-                            new InputFileStream(memoryStream2), null, message).Result;
-                    }
+                    var res = _telegram?.SendPhotoAsync(new ChatId(Settings.Channel.TelegramChannel),
+                        new InputFileStream(response.Content.ReadAsStream()), null, message).Result;
                     found = true;
 
                     break;
@@ -175,16 +166,6 @@ namespace WTFTwitch.Bot
 
             if (!found)
                 throw new PreviewNotReadyException();
-        }
-
-        private Image ResizeImage(MemoryStream stream, int width, int height)
-        {
-            var image = Image.FromStream(stream);
-            if (width <= 1600)
-                return image;
-
-            //return new Bitmap(image, new Size(1600, 900));
-            return image.GetThumbnailImage(1600, 900, null, IntPtr.Zero);
         }
 
         private List<Chatter> GetChatters()
@@ -242,7 +223,8 @@ namespace WTFTwitch.Bot
                 _bot.Logger.Warn($"Failed to resolve joined user {e.Username} for channel {Channel.ChannelName}");
                 return;
             }
-            else if (userInfos.Count > 1)
+            
+            if (userInfos.Count > 1)
             {
                 _bot.Logger.Warn($"Joined user {e.Username} for channel {Channel.ChannelName} resolves in more than 1 entities " +
                     string.Join(", ", userInfos.Select(_ => _.ToString())));
@@ -250,7 +232,7 @@ namespace WTFTwitch.Bot
             }
 
             var info = userInfos.FirstOrDefault(_ => !ResolveHelper.IsIgnoredUser(_.Id));
-            if (info == default(UserInfo))
+            if (info == null)
                 return;
 
             _bot.Logger.Info($"User {info} joined channel [{Channel.ChannelName}]");
@@ -274,7 +256,7 @@ namespace WTFTwitch.Bot
             }
 
             var info = userInfos.FirstOrDefault(_ => !ResolveHelper.IsIgnoredUser(_.Id));
-            if (info == default(UserInfo))
+            if (info == null)
                 return;
 
             _bot.Logger.Info($"User {info} left channel [{Channel.ChannelName}]");

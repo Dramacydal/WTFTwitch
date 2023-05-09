@@ -5,7 +5,7 @@ using System.Linq;
 using TwitchLib.Client.Models;
 using WTFShared;
 using WTFShared.Database;
-using WTFShared.Logging;
+using WTFTwitch.Bot.Exceptions;
 
 namespace WTFTwitch.Bot.Commands
 {

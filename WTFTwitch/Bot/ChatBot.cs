@@ -44,7 +44,8 @@ namespace WTFTwitch.Bot
 
             InitializeClient(api.AccessToken);
 
-            _whisperCommandHandler = new WhisperCommandHandler(this);
+            if (settings.Channel.WhispersEnabled)
+                _whisperCommandHandler = new WhisperCommandHandler(this);
         }
 
         public Logger Logger => LoggerFactory.GetForBot("channel", Settings.BotName, Settings.Channel.ChannelName);

@@ -11,7 +11,7 @@ namespace WTFTwitch.Tasks.User
 
         public StoreCacheTask(UserInfo info, uint tryCount = 0, Func<WTFTask, WTFTaskStatus> callback = null) : base(null, tryCount, callback)
         {
-            this._info = info;
+            _info = info;
 
             _command = new MySqlCommand(
                 "INSERT IGNORE INTO user_info (id, name, display_name) VALUE (@id, @name, @display_name)");

@@ -37,7 +37,6 @@ namespace WTFTwitch.Bot
                             p.client_id AS client_id,
                             p.access_token AS access_token
                             FROM api_pool p 
-                            JOIN apps a ON a.client_id = p.client_id
                             WHERE p.enabled = 1"))
                         {
                             var t = new QueryTask(command, 0, (task) =>

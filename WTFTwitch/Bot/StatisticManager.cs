@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using WTFShared;
 using WTFShared.Database;
-using WTFShared.Logging;
 
 namespace WTFTwitch.Bot
 {

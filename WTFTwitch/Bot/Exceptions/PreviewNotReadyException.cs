@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace WTFTwitch.Bot.Commands;
+namespace WTFTwitch.Bot.Exceptions;
 
 public class PreviewNotReadyException : Exception
 {
