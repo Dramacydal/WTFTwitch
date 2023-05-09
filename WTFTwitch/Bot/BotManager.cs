@@ -1,6 +1,8 @@
 ﻿using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Google.Protobuf;
 using WTFShared;
 using WTFShared.Database;
 using WTFShared.Logging;
@@ -9,82 +11,127 @@ namespace WTFTwitch.Bot
 {
     class BotManager
     {
-        private readonly List<ChatBot> _bots = new List<ChatBot>();
+        private readonly Dictionary<int, Dictionary<string,ChatBot>> _bots = new();
+        private Dictionary<int, Dictionary<string, BotSettings>> _settings = new();
 
-        public BotManager()
+        public void LoadSettings(bool force = false)
         {
+            if (!force && _settings.Count > 0)
+                return;
+
+            Stop();
+
+            _bots.Clear();
+
+            _settings = LoadBotSettings();
         }
 
-        public void LoadSettings(int botId = 0, int channelId = 0)
+        public ChatBot GetBot(int id, string channelId)
         {
-            var settings = LoadBotSettings(botId);
+            LoadSettings();
 
-            foreach (var setting in settings)
+            if (_bots.ContainsKey(id) && _bots[id].ContainsKey(channelId))
+                return _bots[id][channelId];
+
+            if (_settings.ContainsKey(id) && _settings[id].ContainsKey(channelId))
             {
-                if (botId != 0 && channelId != 0)
-                    setting.ExplicitChannelId = channelId;
-
-                try
-                {
-                    var bot = new ChatBot(setting);
-                    _bots.Add(bot);
-                }
-                catch (Exception e)
-                {
-                    Logger.Instance.Error($"Failed to initialize bot: {e.Info()}");
-                }
+                var bot = new ChatBot(_settings[id][channelId]);
+                if (!_bots.ContainsKey(id))
+                    _bots[id] = new();
+                _bots[id][channelId] = bot;
+                return bot;
             }
+
+            return null;
         }
 
         public void Start()
         {
-            if (_bots.Count == 0)
-                LoadSettings();
+            LoadSettings();
 
-            foreach (var bot in _bots)
-                bot.Start();
+            foreach (var (botId, byBotSettings) in _settings)
+            {
+                foreach (var (channelId, settings) in byBotSettings)
+                {
+                    if (!settings.Enabled)
+                        continue;
+
+                    GetBot(botId, channelId)?.Start();
+                }
+            }
         }
 
         public void Stop()
         {
-            foreach (var bot in _bots)
-                bot.Stop();
+            foreach (var (botId, botInstances) in _bots)
+            {
+                foreach (var (channelId, bot) in botInstances)
+                    bot.Stop();
+            }
         }
 
-        private static IEnumerable<BotSettings> LoadBotSettings(int botId = 0)
+        private static Dictionary<int, Dictionary<string, BotSettings>> LoadBotSettings()
         {
-            List<BotSettings> botSettings = new List<BotSettings>();
+            Dictionary<int, Dictionary<string, BotSettings>> botSettings = new();
 
             try
             {
-                var query = "SELECT id, bot_name, telegram_token FROM bots WHERE ";
-                if (botId != 0)
-                    query += $"id = {botId}";
-                else
-                    query += "enabled = 1";
+                var query = "SELECT b.id AS bot_id, b.bot_name AS bot_name, b.enabled AS bot_enabled , " +
+                            "bwc.channel_id AS watched_channel_id, bwc.commands_enabled AS commands_enabled, bwc.telegram_channel AS telegram_channel, " +
+                            "bwc.telegram_token AS telegram_token, bwc.enabled AS watch_enabled " +
+                            "FROM bots b " +
+                            "JOIN bot_watched_channels bwc ON bwc.bot_id = b.id";
 
-                using (var command = new MySqlCommand(query, DbConnection.GetConnection()))
+                using var command = new MySqlCommand(query, DbConnection.GetConnection());
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
                 {
-                    using (var reader = command.ExecuteReader())
+                    var id = reader.GetInt32("bot_id");
+                    var watchedChannelId = reader.GetString("watched_channel_id");
+                    if (!botSettings.ContainsKey(id))
+                        botSettings[id] = new();
+
+                    var settings = new BotSettings()
                     {
-                        while (reader.Read())
+                        BotId = id,
+                        BotName = reader.GetString("bot_name"),
+                        Channel = new WatchedChannel()
                         {
-                            botSettings.Add(new BotSettings()
-                            {
-                                Id = reader.GetInt32(0),
-                                Name = reader.GetString(1),
-                                TelegramToken = !reader.IsDBNull(2) ? reader.GetString(2) : null,
-                            });
-                        }
+                            ChannelId = watchedChannelId,
+                            CommandsEnabled = reader.GetInt32("commands_enabled") != 0,
+                            TelegramChannel = reader.GetString("telegram_channel"),
+                            TelegramToken = reader.GetString("telegram_token"),
+                        },
+                        Enabled = reader.GetInt32("bot_enabled") != 0 && reader.GetInt32("watch_enabled") != 0,
+                    };
+
+                    if (!ResolveChannel(settings.Channel))
+                    {
+                        LoggerFactory.Global.Error($"Failed to resolve watched channel {settings.Channel.ChannelId}");
+                        continue;
                     }
+
+                    botSettings[id][watchedChannelId] = settings;
                 }
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Failed to load bot settings: {e.Info()}");
+                LoggerFactory.Global.Error($"Failed to load bot settings: {e.Info()}");
             }
 
             return botSettings;
+        }
+
+        private static bool ResolveChannel(WatchedChannel channel)
+        {
+            var resolveResult = ApiPool.Get().Api.Helix.Users
+                .GetUsersAsync(new() { channel.ChannelId }).Result;
+            if (resolveResult.Users.Length == 0)
+                return false;
+
+            channel.ChannelName = resolveResult.Users.First().Login.ToLower();
+
+            return true;
         }
     }
 }

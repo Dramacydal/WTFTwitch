@@ -11,12 +11,13 @@ namespace WTFTwitch.Bot.Commands
 {
     abstract class AbstractCommandHandler
     {
-        protected BotSettings _settings;
-        protected TwitchClient _client => _settings.Client;
+        protected ChatBot _bot;
+        protected TwitchClient _client => _bot.Client;
+        protected WatchedChannel _channel => _bot.Settings.Channel;
 
-        protected AbstractCommandHandler(BotSettings settings)
+        protected AbstractCommandHandler(ChatBot bot)
         {
-            this._settings = settings;
+            this._bot = bot;
         }
     }
 }

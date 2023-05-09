@@ -49,7 +49,7 @@ namespace WTFShared
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Error while executing timer: {e.Info()}");
+                LoggerFactory.Global.Error($"Error while executing timer: {e.Info()}");
             }
         }
     }

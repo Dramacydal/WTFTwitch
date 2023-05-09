@@ -5,17 +5,16 @@ using System.Linq;
 using TwitchLib.Client.Models;
 using WTFShared;
 using WTFShared.Database;
+using WTFShared.Logging;
 
 namespace WTFTwitch.Bot.Commands
 {
     class ChatCommandHandler : AbstractCommandHandler
     {
-        private readonly WatchedChannel _channel;
         private readonly ChannelProcessor _processor;
 
-        public ChatCommandHandler(WatchedChannel channel, ChannelProcessor processor) : base(processor.Settings)
+        public ChatCommandHandler(ChatBot bot, ChannelProcessor processor) : base(bot)
         {
-            _channel = channel;
             _processor = processor;
         }
 
@@ -35,12 +34,12 @@ namespace WTFTwitch.Bot.Commands
                     part1 = part1.Substring(0, lastSpace);
                 }
 
-                _client.SendMessage(_channel.Name, part1);
-                _client.SendMessage(_channel.Name, part2);
+                _client.SendMessage(_channel.ChannelName, part1);
+                _client.SendMessage(_channel.ChannelName, part2);
                 return;
             }
 
-            _client.SendMessage(_channel.Name, message);
+            _client.SendMessage(_channel.ChannelName, message);
         }
 
         private void SendEmote(string message, params object[] args)
@@ -72,6 +71,9 @@ namespace WTFTwitch.Bot.Commands
                 case "resolve":
                     HandleResolveCommand(command);
                     break;
+                case "notify":
+                    HandleNotifyCommand(command);
+                    break;
                 default:
                     break;
             }
@@ -94,6 +96,27 @@ namespace WTFTwitch.Bot.Commands
             SendMessage(string.Join(", ", res.Select(_ => _.ToFullString())));
         }
 
+        private void HandleNotifyCommand(ChatCommand command)
+        {
+            if (command.ArgumentsAsString.Length == 0)
+                return;
+
+            try
+            {
+                _processor.NotifyOnline(command.ArgumentsAsString);
+                SendMessage("Notification sent");
+            }
+            catch (PreviewNotReadyException)
+            {
+                SendMessage("Channel preview not ready, try again later");
+            }
+            catch (Exception e)
+            {
+                SendMessage("Failed to notify");
+                _bot.Logger.Error($"Online notification command failed: {e.Message}");
+            }
+        }
+
         private void HandleTTSCommand(ChatCommand command)
         {
             _processor.AddVoiceTask(command.ArgumentsAsString);
@@ -109,7 +132,7 @@ namespace WTFTwitch.Bot.Commands
         {
             if (command.ArgumentsAsList.Count == 0)
             {
-                var cacheKey = $"stats_{_channel.Id}";
+                var cacheKey = $"stats_{_channel.ChannelId}";
                 if (!CacheHelper.Load(cacheKey, out string stats) || string.IsNullOrEmpty(stats))
                 {
                     List<object[]> data;
@@ -117,8 +140,8 @@ namespace WTFTwitch.Bot.Commands
                         "LEFT JOIN user_ignore_stats uis ON uis.user_id = ucs.user_id " +
                         "WHERE ucs.channel_id = @channel_id AND ucs.bot_id = @bot_id AND uis.user_id IS NULL AND ucs.user_id != @channel_id ORDER BY ucs.watch_time DESC LIMIT 10", DbConnection.GetConnection()))
                     {
-                        query.Parameters.AddWithValue("@channel_id", _channel.Id);
-                        query.Parameters.AddWithValue("@bot_id", _channel.BotId);
+                        query.Parameters.AddWithValue("@channel_id", _channel.ChannelId);
+                        query.Parameters.AddWithValue("@bot_id", _bot.Settings.BotId);
 
                         using (var reader = query.ExecuteReader())
                             data = reader.ReadAll();
@@ -143,7 +166,7 @@ namespace WTFTwitch.Bot.Commands
             {
                 var userName = command.ArgumentsAsList[0];
 
-                var cacheKey = $"stats_{_channel.Id}_{userName}";
+                var cacheKey = $"stats_{_channel.ChannelId}_{userName}";
                 if (!CacheHelper.Load(cacheKey, out int time) || time == 0)
                 {
                     var userInfos = ResolveHelper.Resolve(userName, true);
@@ -162,8 +185,8 @@ namespace WTFTwitch.Bot.Commands
 
                     using (var query = new MySqlCommand("SELECT watch_time FROM user_channel_stats WHERE bot_id = @bot_id AND channel_id = @channel_id AND user_id = @user_id", DbConnection.GetConnection()))
                     {
-                        query.Parameters.AddWithValue("@bot_id", _channel.BotId);
-                        query.Parameters.AddWithValue("@channel_id", _channel.Id);
+                        query.Parameters.AddWithValue("@bot_id", _bot.Settings.BotId);
+                        query.Parameters.AddWithValue("@channel_id", _channel.ChannelId);
                         query.Parameters.AddWithValue("@user_id", userInfos[0].Id);
 
                         time = Convert.ToInt32(query.ExecuteScalar());
@@ -186,10 +209,10 @@ namespace WTFTwitch.Bot.Commands
                 return;
             }
 
-            var cacheKey = $"uptime_{_channel.Id}";
+            var cacheKey = $"uptime_{_channel.ChannelId}";
             if (!CacheHelper.Load(cacheKey, out DateTime startDate) || startDate.IsEmpty())
             {
-                var res = ApiPool.GetContainer().Api.Helix.Streams.GetStreamsAsync(userIds:new List<string> { _channel.Id }).Result;
+                var res = ApiPool.Get().Api.Helix.Streams.GetStreamsAsync(userIds:new List<string> { _channel.ChannelId }).Result;
                 if (res.Streams.Length == 0)
                 {
                     SendEmote("Uptime info not available");

@@ -3,7 +3,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using WTFShared;
@@ -14,7 +13,7 @@ namespace WTFTwitch.Bot
 {
     class StatisticManager
     {
-        public WatchedChannel Channel { get; }
+        private ChatBot _bot;
 
         private ConcurrentDictionary<string, UserUpdateData> _updateStorage = new ConcurrentDictionary<string, UserUpdateData>();
         private ConcurrentQueue<UserUpdateData> _removedUpdateQueue = new ConcurrentQueue<UserUpdateData>();
@@ -25,9 +24,9 @@ namespace WTFTwitch.Bot
 
         public bool IsStopped => _updateTask.Status == TaskStatus.RanToCompletion;
 
-        public StatisticManager(WatchedChannel channel)
+        public StatisticManager(ChatBot bot)
         {
-            Channel = channel;
+            _bot = bot;
 
             _updateTask = Task.Run(() => UpdateThread(_updateThreadTokenSource.Token));
         }
@@ -82,7 +81,7 @@ namespace WTFTwitch.Bot
                 }
                 catch(Exception e)
                 {
-                    Logger.Instance.Error($"Statisticmanager update thread failed: {e.Info()}");
+                    _bot.Logger.Error($"Statisticmanager update thread failed: {e.Info()}");
                 }
 
                 Thread.Sleep(10000);
@@ -97,8 +96,8 @@ namespace WTFTwitch.Bot
                     "(@bot_id, @channel_id, @user_id, @first_seen, @last_seen, @watch_time, @is_online) ON DUPLICATE KEY " +
                     "UPDATE last_seen = @last_seen, watch_time = watch_time + @watch_time, is_online = @is_online", DbConnection.GetConnection()))
                 {
-                    command.Parameters.AddWithValue("@bot_id", Channel.BotId);
-                    command.Parameters.AddWithValue("@channel_id", Channel.Id);
+                    command.Parameters.AddWithValue("@bot_id", _bot.Settings.BotId);
+                    command.Parameters.AddWithValue("@channel_id", _bot.Settings.Channel.ChannelId);
                     command.Parameters.AddWithValue("@user_id", userId);
                     command.Parameters.AddWithValue("@first_seen", (int)lastSeen.Subtract(new DateTime(1970, 1, 1)).TotalSeconds - timeDiff);
                     command.Parameters.AddWithValue("@last_seen", (int)lastSeen.Subtract(new DateTime(1970, 1, 1)).TotalSeconds);
@@ -112,7 +111,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Error: {e.Info()}");
+                _bot.Logger.Error($"Error: {e.Info()}");
                 return false;
             }
         }

@@ -68,7 +68,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Failed to initialize Resolver database: {e.Info()}");
+                LoggerFactory.Global.Error($"Failed to initialize Resolver database: {e.Info()}");
             }
         }
 
@@ -120,7 +120,7 @@ namespace WTFTwitch.Bot
 
             try
             {
-                var userResult = ApiPool.GetContainer().Api.Helix.Users.GetUsersAsync(ids:new List<string> { userId }).Result;
+                var userResult = ApiPool.Get().Api.Helix.Users.GetUsersAsync(ids:new List<string> { userId }).Result;
                 if (userResult == null || userResult.Users.Length == 0)
                     return null;
 
@@ -131,7 +131,7 @@ namespace WTFTwitch.Bot
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Errors: {e.Info()}");
+                LoggerFactory.Global.Error($"Errors: {e.Info()}");
                 return null;
             }
         }
@@ -163,14 +163,14 @@ namespace WTFTwitch.Bot
             {
                 var user = GetUserById(nameOrId, useCache);
 
-                result = user != null ? new List<UserInfo> {user} : new List<UserInfo>();
+                result = user != null ? new List<UserInfo> { user } : new List<UserInfo>();
             }
             else
                 result = GetUsersByName(nameOrId, useCache);
 
             if (result.Count > 1)
             {
-                Logger.Instance.Debug($"Name or id [{nameOrId}] resolves in more than 1 entities: " +
+                LoggerFactory.Global.Debug($"Name or id [{nameOrId}] resolves in more than 1 entities: " +
                                       string.Join(", ", result.Select(_ => _.ToString())));
             }
 
@@ -210,14 +210,14 @@ namespace WTFTwitch.Bot
                 {
                     try
                     {
-                        var apiResult2 = ApiPool.GetContainer().Api.Helix.Users.GetUsersAsync(logins:uncached.ToList()).Result;
+                        var apiResult2 = ApiPool.Get().Api.Helix.Users.GetUsersAsync(logins:uncached.ToList()).Result;
                         if (apiResult2.Users.Length > 0)
                             requested.AddRange(
                                 apiResult2.Users.Select(_ => new UserInfo(_)));
                     }
                     catch (Exception e)
                     {
-                        Logger.Instance.Error($"Error : {e.Info()}");
+                        LoggerFactory.Global.Error($"Error : {e.Info()}");
                     }
                 }
 

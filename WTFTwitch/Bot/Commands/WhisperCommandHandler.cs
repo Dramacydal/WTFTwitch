@@ -1,15 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using TwitchLib.Client.Models;
+﻿using TwitchLib.Client.Models;
 
 namespace WTFTwitch.Bot.Commands
 {
     class WhisperCommandHandler : AbstractCommandHandler
     {
-        public WhisperCommandHandler(BotSettings settings) : base(settings)
+        public WhisperCommandHandler(ChatBot bot) : base(bot)
         {
         }
 

@@ -65,7 +65,7 @@ namespace WTFShared.Tasks
             }
             catch (Exception e)
             {
-                Logger.Instance.Error($"Task.Execute failed: {e.Message}");
+                LoggerFactory.Global.Error($"Task.Execute failed: {e.Message}");
                 Status = WTFTaskStatus.Failed;
             }
 

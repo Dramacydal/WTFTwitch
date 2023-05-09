@@ -6,7 +6,7 @@ using System.Linq;
 
 namespace WTFShared.Logging
 {
-    public static class Logger
+    public static class LoggerFactory
     {
         private const string DefaultLayout = @"[${date:format=yyyy-MM-dd HH\:mm\:ss}][${level:uppercase=true}] ${message}";
 
@@ -20,26 +20,32 @@ namespace WTFShared.Logging
             [LogLevel.Fatal] = ConsoleOutputColor.Red,
         };
 
-        public static NLog.Logger Instance { get; } = null;
+        public static Logger Global => LogManager.GetLogger("global");
 
-        static Logger()
+        public static Logger GetForBot(string context, string botName, string channelName = "")
+        {
+            if (!string.IsNullOrEmpty(channelName))
+                return LogManager.GetLogger($"{context}_{botName.ToLower()}_{channelName.ToLower()}");
+            else
+                return LogManager.GetLogger($"{context}_{botName.ToLower()}");
+        }
+
+        static LoggerFactory()
         {
             var config = new NLog.Config.LoggingConfiguration();
 
-            var fileLog = new FileTarget("logfile") {FileName = "WTFTwitch.log", Layout = DefaultLayout};
+            var bot = new FileTarget("logfile") {FileName = @"WTFTwitch_${logger}.log", Layout = DefaultLayout};
 
             var consoleLog = new ColoredConsoleTarget("consolelog") {Layout = DefaultLayout};
             foreach (var rule in GetColorRules())
                 consoleLog.RowHighlightingRules.Add(rule);
-
-            config.AddRuleForAllLevels(fileLog);
+            
+            config.AddRuleForAllLevels(bot);
             config.AddRuleForAllLevels(consoleLog);
 
-            NLog.LogManager.Configuration = config;
-
-            Instance = NLog.LogManager.GetCurrentClassLogger();
+            LogManager.Configuration = config;
         }
-
+        
         private static IEnumerable<ConsoleRowHighlightingRule> GetColorRules()
         {
             return ColoringRules.Select(_ =>

@@ -17,50 +17,39 @@ namespace WTFTwitch
 
         private static void Main(string[] args)
         {
-            AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
-            {
-                string assemblyInfo = resolveArgs.Name;// e.g "Lib1, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-                var parts = assemblyInfo.Split(',');
-                string name = parts[0];
-                var version = Version.Parse(parts[1].Split('=')[1]);
-                string fullName;
-                if (name == "System.Net.Http" && version.Major == 4 && version.Minor == 2)
-                {
-                    fullName = new FileInfo(@"4.8\System.Net.Http.dll").FullName;
-                }
-                else if (name == "System.Net.Http" && version.Major == 4 && version.Minor == 0)
-                {
-                    fullName = new FileInfo(@"4.7\System.Net.Http.dll").FullName;
-                }
-                else
-                {
-                    return null;
-                }
-
-                try
-                {
-                    return Assembly.LoadFile(fullName);
-                }catch (Exception ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                }
-
-                return null;
-            };
+            // AppDomain.CurrentDomain.AssemblyResolve += (sender, resolveArgs) =>
+            // {
+            //     string assemblyInfo = resolveArgs.Name;// e.g "Lib1, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+            //     var parts = assemblyInfo.Split(',');
+            //     string name = parts[0];
+            //     var version = Version.Parse(parts[1].Split('=')[1]);
+            //     string fullName;
+            //     if (name == "System.Net.Http" && version.Major == 4 && version.Minor == 2)
+            //     {
+            //         fullName = new FileInfo(@"4.8\System.Net.Http.dll").FullName;
+            //     }
+            //     else if (name == "System.Net.Http" && version.Major == 4 && version.Minor == 0)
+            //     {
+            //         fullName = new FileInfo(@"4.7\System.Net.Http.dll").FullName;
+            //     }
+            //     else
+            //     {
+            //         return null;
+            //     }
+            //
+            //     try
+            //     {
+            //         return Assembly.LoadFile(fullName);
+            //     }catch (Exception ex)
+            //     {
+            //         Console.WriteLine(ex.ToString());
+            //     }
+            //
+            //     return null;
+            // };
 
 
             TaskManager.Start();
-
-
-            Console.WriteLine(1);
-            var api = ApiPool.GetContainer();
-            Console.WriteLine(2);
-            api = ApiPool.GetContainer();
-            Console.WriteLine(3);
-            api = ApiPool.GetContainer();
-            Console.WriteLine(4);
-            api = ApiPool.GetContainer();
-            Console.WriteLine(5);
 
             if (false)
             {
@@ -109,11 +98,17 @@ namespace WTFTwitch
             }
 
             _manager = new BotManager();
-            _manager.LoadSettings(botId, channelId);
-            _manager.Start();
+            if (botId > 0 && channelId > 0)
+            {
+                var bot = _manager.GetBot(botId, channelId.ToString());
+                bot?.Start();
+            }
+            else
+                _manager.Start();
+            
             while (!needStop)
                 Thread.Sleep(50);
-            Logger.Instance.Info("Stopping...");
+            LoggerFactory.Global.Info("Stopping...");
             _manager.Stop();
         }
     }

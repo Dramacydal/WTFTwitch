@@ -19,7 +19,7 @@ namespace WTFShared.Tasks
 
         private static void UpdateThread(CancellationToken token)
         {
-            Logger.Instance.Info("===Task manager update thread started===");
+            LoggerFactory.Global.Info("===Task manager update thread started===");
 
             while (!token.IsCancellationRequested)
             {
@@ -29,7 +29,7 @@ namespace WTFShared.Tasks
                 }
                 catch (Exception e)
                 {
-                    Logger.Instance.Error($"Task manager update loop failed: {e.Info()}");
+                    LoggerFactory.Global.Error($"Task manager update loop failed: {e.Info()}");
                 }
 
                 Thread.Sleep(200);
@@ -61,7 +61,7 @@ namespace WTFShared.Tasks
             if (!_tasks.ContainsKey(task.Type))
                 _tasks[task.Type] = new List<WTFTask>();
 
-            Logger.Instance.Info($"TaskManager: Adding task {task.Id} {task.ToString()} of type {task.GetType()}");
+            LoggerFactory.Global.Info($"TaskManager: Adding task {task.Id} {task.ToString()} of type {task.GetType()}");
             _tasks[task.Type].Add(task);
 
             return task;
@@ -104,21 +104,21 @@ namespace WTFShared.Tasks
 
                             break;
                         case WTFTaskStatus.Retry:
-                            Logger.Instance.Error($"TaskManager: WTFTask {task.Id} failed and retrying");
+                            LoggerFactory.Global.Error($"TaskManager: WTFTask {task.Id} failed and retrying");
                             break;
                         case WTFTaskStatus.Failed:
                             if (task.TryCount > 0)
-                                Logger.Instance.Error($"TaskManager: WTFTask {task.Id} failed after {task.TryCount} retries");
+                                LoggerFactory.Global.Error($"TaskManager: WTFTask {task.Id} failed after {task.TryCount} retries");
                             else
-                                Logger.Instance.Error($"TaskManager: WTFTask {task.Id} failed");
+                                LoggerFactory.Global.Error($"TaskManager: WTFTask {task.Id} failed");
                             removedTasks.Add(task);
                             break;
                         case WTFTaskStatus.Abort:
-                            Logger.Instance.Info($"TaskManager: WTFTask {task.Id} aborted");
+                            LoggerFactory.Global.Info($"TaskManager: WTFTask {task.Id} aborted");
                             removedTasks.Add(task);
                             break;
                         case WTFTaskStatus.Finished:
-                            Logger.Instance.Info($"TaskManager: WTFTask {task.Id} {task.ToString()} finished successfully");
+                            LoggerFactory.Global.Info($"TaskManager: WTFTask {task.Id} {task.ToString()} finished successfully");
                             removedTasks.Add(task);
                             break;
                     }
@@ -127,7 +127,7 @@ namespace WTFShared.Tasks
 
             foreach (var task in removedTasks)
             {
-                Logger.Instance.Debug($"TaskManager: Removing task {task.Id} of type {task.GetType()}");
+                LoggerFactory.Global.Debug($"TaskManager: Removing task {task.Id} of type {task.GetType()}");
                 _tasks[task.Type].Remove(task);
             }
         }
@@ -153,7 +153,7 @@ namespace WTFShared.Tasks
                 }
                 catch (Exception e)
                 {
-                    Logger.Instance.Error($"Error executing task from thread pool: {e.Message}");
+                    LoggerFactory.Global.Error($"Error executing task from thread pool: {e.Message}");
                 }
             });
 
